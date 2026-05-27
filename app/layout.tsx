@@ -4,6 +4,7 @@ import './globals.css'
 import Nav from '@/components/Nav'
 import InstallBanner from '@/components/InstallBanner'
 import PinGate from '@/components/PinGate'
+import PushSubscriber from '@/components/PushSubscriber'
 
 const geist = Geist({ subsets: ['latin'] })
 
@@ -27,6 +28,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="apple-touch-icon" href="/icon-192.png" />
       </head>
       <body className={`${geist.className} bg-slate-950 text-slate-100 min-h-screen`}>
+        <PushSubscriber />
         <PinGate>
           <Nav />
           <InstallBanner />
