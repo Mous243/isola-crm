@@ -17,16 +17,75 @@ export default function Clientes() {
   const [filtro, setFiltro] = useState('')
   const [expandido, setExpandido] = useState<number | null>(null)
   const [historial, setHistorial] = useState<Record<number, Visita[]>>({})
-  const [modo, setModo] = useState<'lista' | 'form'>('lista')
+  const [modo, setModo] = useState<'lista' | 'form' | 'csv'>('lista')
   const [form, setForm] = useState<Partial<Cliente>>(empty)
   const [editId, setEditId] = useState<number | null>(null)
   const [saving, setSaving] = useState(false)
+  const [csvPreview, setCsvPreview] = useState<Partial<Cliente>[]>([])
+  const [csvImportando, setCsvImportando] = useState(false)
+  const [csvResultado, setCsvResultado] = useState<string | null>(null)
 
   const cargar = async () => {
     const { data } = await supabase.from('clientes').select('*').order('nombre_negocio')
     setClientes(data || [])
   }
   useEffect(() => { cargar() }, [])
+
+  const descargarPlantilla = () => {
+    const headers = 'nombre_negocio,propietario,telefono,direccion,zona,sector,hora_ideal_visita,frecuencia_visita,notas_personales,status,deuda_pendiente,moneda_deuda'
+    const ejemplo = 'Bodega El Sol,Juan Pérez,584121234567,Av. Principal 123,Zona Norte,Centro,08:00-10:00,semanal,Le gusta el café,activo,0,USD'
+    const blob = new Blob([headers + '\n' + ejemplo], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a'); a.href = url; a.download = 'plantilla_clientes.csv'; a.click()
+  }
+
+  const parsearCSV = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      const text = ev.target?.result as string
+      const lines = text.trim().split('\n')
+      const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''))
+      const rows = lines.slice(1).map(line => {
+        const vals = line.split(',').map(v => v.trim().replace(/"/g, ''))
+        const obj: Record<string, string> = {}
+        headers.forEach((h, i) => { obj[h] = vals[i] || '' })
+        return {
+          nombre_negocio: obj.nombre_negocio || obj['Nombre'] || obj['nombre'] || '',
+          propietario: obj.propietario || obj['Propietario'] || '',
+          telefono: obj.telefono || obj['Teléfono'] || obj['Telefono'] || '',
+          direccion: obj.direccion || obj['Dirección'] || obj['Direccion'] || '',
+          zona: obj.zona || obj['Zona'] || '',
+          sector: obj.sector || obj['Sector'] || '',
+          hora_ideal_visita: obj.hora_ideal_visita || '',
+          frecuencia_visita: obj.frecuencia_visita || 'semanal',
+          notas_personales: obj.notas_personales || obj['Notas'] || '',
+          status: obj.status || 'activo',
+          deuda_pendiente: parseFloat(obj.deuda_pendiente || '0') || 0,
+          moneda_deuda: obj.moneda_deuda || 'USD',
+          tags: [], productos_habituales: [],
+        } as Partial<Cliente>
+      }).filter(r => r.nombre_negocio)
+      setCsvPreview(rows)
+      setCsvResultado(null)
+    }
+    reader.readAsText(file)
+  }
+
+  const importarCSV = async () => {
+    if (csvPreview.length === 0) return
+    setCsvImportando(true)
+    const { error } = await supabase.from('clientes').insert(csvPreview)
+    setCsvImportando(false)
+    if (error) {
+      setCsvResultado(`❌ Error: ${error.message}`)
+    } else {
+      setCsvResultado(`✅ ${csvPreview.length} clientes importados correctamente`)
+      setCsvPreview([])
+      cargar()
+    }
+  }
 
   const verHistorial = async (clienteId: number) => {
     if (historial[clienteId]) return
@@ -157,14 +216,76 @@ export default function Clientes() {
     </div>
   )
 
+  if (modo === 'csv') return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-3">
+        <button onClick={() => { setModo('lista'); setCsvPreview([]); setCsvResultado(null) }}
+          className="text-slate-400 hover:text-white">← Volver</button>
+        <h1 className="text-xl font-bold">Importar clientes desde CSV</h1>
+      </div>
+
+      <div className="bg-slate-900 rounded-xl p-4 border border-slate-800 space-y-4">
+        <div className="space-y-1">
+          <p className="text-sm text-slate-300">1. Descarga la plantilla y llénala con tus clientes</p>
+          <button onClick={descargarPlantilla}
+            className="bg-slate-700 hover:bg-slate-600 text-sm px-4 py-2 rounded-lg">
+            ⬇️ Descargar plantilla CSV
+          </button>
+        </div>
+
+        <div className="space-y-1">
+          <p className="text-sm text-slate-300">2. Sube el archivo CSV con tus clientes</p>
+          <input type="file" accept=".csv,text/csv" onChange={parsearCSV}
+            className="block w-full text-sm text-slate-400 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-violet-600 file:text-white hover:file:bg-violet-700 cursor-pointer" />
+        </div>
+
+        {csvPreview.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-sm text-slate-300">3. Revisa los datos — se importarán <span className="text-violet-400 font-medium">{csvPreview.length} clientes</span></p>
+            <div className="max-h-48 overflow-y-auto space-y-1 bg-slate-800/50 rounded-lg p-2">
+              {csvPreview.map((c, i) => (
+                <div key={i} className="flex gap-2 text-xs py-0.5">
+                  <span className="text-white font-medium w-40 truncate">{c.nombre_negocio}</span>
+                  <span className="text-slate-400 w-28 truncate">{c.propietario || '—'}</span>
+                  <span className="text-slate-500 truncate">{c.telefono || '—'}</span>
+                  <span className="text-slate-500 truncate">{c.zona || '—'}</span>
+                </div>
+              ))}
+            </div>
+            <button onClick={importarCSV} disabled={csvImportando}
+              className="w-full bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white py-2.5 rounded-lg font-medium">
+              {csvImportando ? 'Importando...' : `✅ Importar ${csvPreview.length} clientes`}
+            </button>
+          </div>
+        )}
+
+        {csvResultado && (
+          <p className={`text-sm p-3 rounded-lg ${csvResultado.startsWith('✅') ? 'bg-green-900/40 text-green-400' : 'bg-red-900/40 text-red-400'}`}>
+            {csvResultado}
+          </p>
+        )}
+
+        <div className="border-t border-slate-700 pt-3">
+          <p className="text-xs text-slate-500">Columnas soportadas: nombre_negocio, propietario, telefono, direccion, zona, sector, hora_ideal_visita, frecuencia_visita, notas_personales, status, deuda_pendiente, moneda_deuda</p>
+        </div>
+      </div>
+    </div>
+  )
+
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3">
         <h1 className="text-2xl font-bold text-violet-400">Clientes</h1>
-        <button onClick={() => { setForm(empty); setEditId(null); setModo('form') }}
-          className="ml-auto bg-violet-600 hover:bg-violet-700 text-white px-3 py-1.5 rounded-lg text-sm">
-          + Nuevo
-        </button>
+        <div className="ml-auto flex gap-2">
+          <button onClick={() => setModo('csv')}
+            className="bg-slate-700 hover:bg-slate-600 text-white px-3 py-1.5 rounded-lg text-sm">
+            📥 CSV
+          </button>
+          <button onClick={() => { setForm(empty); setEditId(null); setModo('form') }}
+            className="bg-violet-600 hover:bg-violet-700 text-white px-3 py-1.5 rounded-lg text-sm">
+            + Nuevo
+          </button>
+        </div>
       </div>
 
       <input value={filtro} onChange={e => setFiltro(e.target.value)}
