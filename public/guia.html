@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Guía Diaria — ISOLA</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0 }
+  body { background: #0f172a; color: #e2e8f0; font-family: -apple-system, sans-serif; padding: 16px; max-width: 480px; margin: 0 auto }
+
+  .header { text-align: center; padding: 24px 0 20px }
+  .header img { width: 80px; border-radius: 16px }
+  .header h1 { font-size: 20px; font-weight: 700; color: #a78bfa; margin-top: 10px }
+  .header p { font-size: 13px; color: #64748b; margin-top: 4px }
+
+  .bloque { background: #1e293b; border-radius: 16px; padding: 16px; margin-bottom: 12px; border-left: 4px solid #334155 }
+  .bloque.auto { border-left-color: #22c55e }
+  .bloque.manual { border-left-color: #a78bfa }
+  .bloque.info { border-left-color: #3b82f6 }
+
+  .hora { font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: #64748b; margin-bottom: 6px }
+  .titulo { font-size: 16px; font-weight: 700; margin-bottom: 8px; display: flex; align-items: center; gap: 8px }
+  .badge { font-size: 10px; padding: 2px 8px; border-radius: 99px; font-weight: 600 }
+  .badge.auto { background: #14532d; color: #86efac }
+  .badge.manual { background: #2e1065; color: #c4b5fd }
+
+  ul { padding-left: 0; list-style: none }
+  li { font-size: 14px; color: #94a3b8; padding: 4px 0; display: flex; gap: 8px }
+  li::before { content: "→"; color: #475569; flex-shrink: 0 }
+  li strong { color: #e2e8f0 }
+
+  .tag { display: inline-block; background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 3px 10px; font-size: 12px; margin: 3px 2px; color: #94a3b8 }
+
+  .tabla { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 8px }
+  .tabla td { padding: 8px 6px; border-bottom: 1px solid #1e293b }
+  .tabla tr:last-child td { border-bottom: none }
+  .tabla td:first-child { color: #e2e8f0 }
+  .tabla td:last-child { text-align: right }
+  .auto-td { color: #86efac }
+  .manual-td { color: #c4b5fd }
+
+  .footer { text-align: center; font-size: 12px; color: #334155; padding: 20px 0 8px }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <img src="/icon-192.png" alt="ISOLA">
+  <h1>Guía Diaria ISOLA</h1>
+  <p>Lo que haces cada día en campo</p>
+</div>
+
+<!-- 7am -->
+<div class="bloque auto">
+  <div class="hora">☀️ 7:00 AM</div>
+  <div class="titulo">Alerta de buenos días <span class="badge auto">Automático</span></div>
+  <ul>
+    <li>Telegram te manda el resumen: cobros urgentes, clientes sin visitar</li>
+    <li><strong>Solo leerlo</strong>, no tienes que hacer nada</li>
+  </ul>
+</div>
+
+<!-- Antes de salir -->
+<div class="bloque manual">
+  <div class="hora">🚗 Antes de salir</div>
+  <div class="titulo">Preparar el día <span class="badge manual">Tú</span></div>
+  <ul>
+    <li>Abre <strong>isola-crm-web.vercel.app</strong> → revisa el banner de arriba</li>
+    <li>Si hay oferta del día → abre <strong>generar_status.bat</strong> en la PC y publica el Status</li>
+  </ul>
+</div>
+
+<!-- En campo -->
+<div class="bloque manual">
+  <div class="hora">🏪 8:00 AM – 4:00 PM</div>
+  <div class="titulo">En campo <span class="badge manual">Tú</span></div>
+  <ul>
+    <li>Toma pedidos con la <strong>app oficial ISOLA</strong> (GPS obligatorio)</li>
+    <li>Después de cada visita → entra al <strong>CRM web</strong> y registra:<br>
+      <span class="tag">cliente</span><span class="tag">resultado</span><span class="tag">monto</span><span class="tag">notas</span>
+    </li>
+  </ul>
+</div>
+
+<!-- 10am -->
+<div class="bloque auto">
+  <div class="hora">💰 10:00 AM</div>
+  <div class="titulo">Recordatorios de cobro <span class="badge auto">Automático</span></div>
+  <ul>
+    <li>El bot WhatsApp manda recordatorios a clientes con cobros en 3 días</li>
+    <li>No tienes que hacer nada</li>
+  </ul>
+</div>
+
+<!-- Mediodía -->
+<div class="bloque info">
+  <div class="hora">🍽️ Mediodía</div>
+  <div class="titulo">Revisar progreso</div>
+  <ul>
+    <li>Escribe <strong>/estado</strong> en Telegram para ver visitas y monto acumulado</li>
+  </ul>
+</div>
+
+<!-- 3pm -->
+<div class="bloque auto">
+  <div class="hora">🔄 3:00 PM</div>
+  <div class="titulo">Seguimientos <span class="badge auto">Automático</span></div>
+  <ul>
+    <li>El bot WhatsApp escribe a clientes que no compraron hoy</li>
+    <li>No tienes que hacer nada</li>
+  </ul>
+</div>
+
+<!-- 8pm -->
+<div class="bloque auto">
+  <div class="hora">🌆 8:00 PM</div>
+  <div class="titulo">Avisos de visita <span class="badge auto">Automático</span></div>
+  <ul>
+    <li>El bot WhatsApp avisa a los clientes de mañana que vas a pasar</li>
+    <li>No tienes que hacer nada</li>
+  </ul>
+</div>
+
+<!-- 9pm -->
+<div class="bloque auto">
+  <div class="hora">🌙 9:00 PM</div>
+  <div class="titulo">Resumen del día <span class="badge auto">Automático</span></div>
+  <ul>
+    <li>Telegram te manda: visitas, pedidos, monto, tasa de cierre</li>
+    <li>También en el CRM web → banner nocturno</li>
+  </ul>
+</div>
+
+<!-- Tabla resumen -->
+<div class="bloque">
+  <div class="titulo">📋 Resumen rápido</div>
+  <table class="tabla">
+    <tr><td>Registrar visitas</td><td class="manual-td">Tú (CRM web)</td></tr>
+    <tr><td>Tomar pedidos</td><td class="manual-td">Tú (App ISOLA)</td></tr>
+    <tr><td>Publicar Status oferta</td><td class="manual-td">Tú (PC)</td></tr>
+    <tr><td>Alerta 7am</td><td class="auto-td">Automático</td></tr>
+    <tr><td>Cobros 10am</td><td class="auto-td">Automático</td></tr>
+    <tr><td>Seguimientos 3pm</td><td class="auto-td">Automático</td></tr>
+    <tr><td>Avisos visita 8pm</td><td class="auto-td">Automático</td></tr>
+    <tr><td>Resumen 9pm</td><td class="auto-td">Automático</td></tr>
+  </table>
+</div>
+
+<!-- Comandos Telegram -->
+<div class="bloque info">
+  <div class="titulo">📱 Comandos Telegram</div>
+  <ul>
+    <li><strong>/estado</strong> — stats del día en tiempo real</li>
+    <li><strong>/cobros</strong> — cobros urgentes</li>
+    <li><strong>/sinvisitar</strong> — clientes sin visitar esta semana</li>
+  </ul>
+</div>
+
+<div class="footer">ISOLA CRM · Sistema personal del vendedor</div>
+
+</body>
+</html>
