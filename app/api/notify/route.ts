@@ -96,10 +96,10 @@ async function encryptPayload(payload: string, p256dh: string, auth: string): Pr
 async function sendPush(
   sub: { endpoint: string; keys: { p256dh: string; auth: string } },
   payload: { title: string; body: string }
-): Promise<void> {
+): Promise<{ status: number; text: string }> {
   const body = await encryptPayload(JSON.stringify(payload), sub.keys.p256dh, sub.keys.auth)
   const jwt = await vapidJWT(new URL(sub.endpoint).origin)
-  await fetch(sub.endpoint, {
+  const res = await fetch(sub.endpoint, {
     method: 'POST',
     headers: {
       Authorization: `vapid t=${jwt},k=${process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!}`,
@@ -109,6 +109,7 @@ async function sendPush(
     },
     body: Buffer.from(body),
   })
+  return { status: res.status, text: await res.text() }
 }
 
 // ─── helpers ────────────────────────────────────────────────────────────────
@@ -176,16 +177,18 @@ export async function GET(req: Request) {
     if (!subs?.length) return NextResponse.json({ ok: true, sent: 0 })
 
     let sent = 0
+    const results = []
     for (const row of subs) {
       try {
-        await sendPush(row.subscription, payload)
-        sent++
-      } catch {
-        // suscripción expirada o inválida
+        const r = await sendPush(row.subscription, payload)
+        if (r.status < 300) sent++
+        results.push(r)
+      } catch (err) {
+        results.push({ status: 0, text: String(err) })
       }
     }
 
-    return NextResponse.json({ ok: true, sent })
+    return NextResponse.json({ ok: true, sent, results })
   } catch (e: unknown) {
     return NextResponse.json({ error: String(e) }, { status: 500 })
   }
