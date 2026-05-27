@@ -5,6 +5,51 @@ import Link from 'next/link'
 
 type Stats = { total: number; con_pedido: number; sin_pedido: number; monto: number }
 
+function AlertaBanner({ stats, cobrosUrgentes, sinVisitar }: {
+  stats: Stats; cobrosUrgentes: any[]; sinVisitar: any[]
+}) {
+  const h = parseInt(new Date().toLocaleString('es-VE', { timeZone: 'America/Caracas', hour: 'numeric', hour12: false }))
+  const [visible, setVisible] = useState(true)
+  if (!visible) return null
+
+  let tipo: 'manana' | 'tarde' | 'noche' | null = null
+  if (h >= 6 && h < 9) tipo = 'manana'
+  else if (h >= 9 && h < 11) tipo = 'tarde'
+  else if (h >= 20 && h < 22) tipo = 'noche'
+  if (!tipo) return null
+
+  const cfg = {
+    manana: {
+      icon: '☀️', color: 'border-yellow-500/40 bg-yellow-900/20',
+      title: 'Buenos días',
+      msg: `${sinVisitar.length} clientes sin visitar · ${cobrosUrgentes.length} cobros urgentes`,
+    },
+    tarde: cobrosUrgentes.length === 0 ? null : {
+      icon: '💰', color: 'border-orange-500/40 bg-orange-900/20',
+      title: 'Cobros próximos',
+      msg: `${cobrosUrgentes.length} cobro${cobrosUrgentes.length > 1 ? 's' : ''} vence${cobrosUrgentes.length > 1 ? 'n' : ''} en 3 días`,
+    },
+    noche: {
+      icon: '🌙', color: 'border-blue-500/40 bg-blue-900/20',
+      title: 'Resumen del día',
+      msg: `${stats.con_pedido}/${stats.total} visitas con pedido · $${stats.monto.toFixed(0)} total`,
+    },
+  }[tipo]
+
+  if (!cfg) return null
+
+  return (
+    <div className={`flex items-start gap-3 p-4 rounded-xl border ${cfg.color} relative`}>
+      <span className="text-2xl">{cfg.icon}</span>
+      <div className="flex-1 min-w-0">
+        <p className="font-semibold text-sm">{cfg.title}</p>
+        <p className="text-xs text-slate-300 mt-0.5">{cfg.msg}</p>
+      </div>
+      <button onClick={() => setVisible(false)} className="text-slate-500 hover:text-slate-300 text-lg leading-none shrink-0">×</button>
+    </div>
+  )
+}
+
 export default function Dashboard() {
   const [stats, setStats] = useState<Stats>({ total: 0, con_pedido: 0, sin_pedido: 0, monto: 0 })
   const [cobrosUrgentes, setCobrosUrgentes] = useState<any[]>([])
@@ -36,6 +81,7 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
+      <AlertaBanner stats={stats} cobrosUrgentes={cobrosUrgentes} sinVisitar={sinVisitar} />
       <div>
         <h1 className="text-2xl font-bold text-violet-400">Dashboard</h1>
         <p className="text-slate-400 text-sm">{new Date().toLocaleDateString('es-VE', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
