@@ -9,14 +9,13 @@ function AlertaBanner({ stats, cobrosUrgentes, sinVisitar }: {
   stats: Stats; cobrosUrgentes: any[]; sinVisitar: any[]
 }) {
   const h = parseInt(new Date().toLocaleString('es-VE', { timeZone: 'America/Caracas', hour: 'numeric', hour12: false }))
-  const preview = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('banner') : null
   const [visible, setVisible] = useState(true)
   if (!visible) return null
 
   let tipo: 'manana' | 'tarde' | 'noche' | null = null
-  if (preview === 'manana' || (h >= 6 && h < 9)) tipo = 'manana'
-  else if (preview === 'tarde' || (h >= 9 && h < 11)) tipo = 'tarde'
-  else if (preview === 'noche' || (h >= 20 && h < 22)) tipo = 'noche'
+  if (h >= 6 && h < 9) tipo = 'manana'
+  else if (h >= 9 && h < 11) tipo = 'tarde'
+  else if (h >= 20 && h < 22) tipo = 'noche'
   if (!tipo) return null
 
   const cfg = {
