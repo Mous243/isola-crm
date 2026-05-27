@@ -37,6 +37,7 @@ export type Visita = {
   moneda?: string
   productos_pedidos?: object[]
   notas_visita?: string
+  foto_url?: string
   created_at?: string
   clientes?: { nombre_negocio: string; propietario?: string }
 }

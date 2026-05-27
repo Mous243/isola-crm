@@ -21,6 +21,8 @@ export default function RegistrarVisita() {
     monto_manual: 0,
     notas_visita: '',
   })
+  const [foto, setFoto] = useState<File | null>(null)
+  const [fotoPreview, setFotoPreview] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [ok, setOk] = useState(false)
 
@@ -52,9 +54,28 @@ export default function RegistrarVisita() {
   })
   const totalCalculado = lineas.reduce((a, l) => a + l.subtotal, 0)
 
+  const onFoto = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setFoto(file)
+    setFotoPreview(URL.createObjectURL(file))
+  }
+
   const guardar = async () => {
     if (!form.cliente_id) return alert('Selecciona un cliente')
     setSaving(true)
+
+    let foto_url: string | null = null
+    if (foto) {
+      const ext = foto.name.split('.').pop()
+      const path = `visita_${form.cliente_id}_${Date.now()}.${ext}`
+      const { data: up } = await supabase.storage.from('evidencias').upload(path, foto, { upsert: true })
+      if (up) {
+        const { data: pub } = supabase.storage.from('evidencias').getPublicUrl(path)
+        foto_url = pub.publicUrl
+      }
+    }
+
     await supabase.from('visitas').insert({
       cliente_id: +form.cliente_id,
       fecha: form.fecha,
@@ -65,12 +86,15 @@ export default function RegistrarVisita() {
       monto_pedido: form.monto_manual || totalCalculado,
       productos_pedidos: lineas.length > 0 ? lineas : [],
       notas_visita: form.notas_visita,
+      foto_url,
     })
     await supabase.from('clientes').update({ fecha_ultima_visita: form.fecha }).eq('id', +form.cliente_id)
     setSaving(false)
     setOk(true)
     setProdsSel([])
     setCantidades({})
+    setFoto(null)
+    setFotoPreview(null)
     setForm(f => ({ ...f, notas_visita: '', monto_manual: 0, resultado: 'pedido' }))
     setTimeout(() => setOk(false), 3000)
   }
@@ -185,6 +209,25 @@ export default function RegistrarVisita() {
               <textarea value={form.notas_visita} onChange={e => setForm({ ...form, notas_visita: e.target.value })}
                 rows={3} placeholder="Qué dijeron, qué necesitan, próxima visita..."
                 className="w-full mt-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm" />
+            </label>
+
+            <label>
+              <span className="text-xs text-slate-400">Foto de evidencia (opcional)</span>
+              <div className="mt-1">
+                <input type="file" accept="image/*" capture="environment" onChange={onFoto}
+                  className="hidden" id="foto-input" />
+                <label htmlFor="foto-input"
+                  className="inline-flex items-center gap-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-sm px-4 py-2 rounded-lg cursor-pointer">
+                  📷 {foto ? foto.name : 'Tomar foto / elegir imagen'}
+                </label>
+              </div>
+              {fotoPreview && (
+                <div className="mt-2 relative">
+                  <img src={fotoPreview} alt="preview" className="w-full max-h-48 object-cover rounded-lg" />
+                  <button onClick={() => { setFoto(null); setFotoPreview(null) }}
+                    className="absolute top-1 right-1 bg-red-600/80 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs">✕</button>
+                </div>
+              )}
             </label>
 
             <button onClick={guardar} disabled={saving}

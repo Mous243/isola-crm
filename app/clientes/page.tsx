@@ -238,8 +238,11 @@ export default function Clientes() {
                               {(v.monto_pedido || 0) > 0 && (
                                 <span className="text-violet-400">${v.monto_pedido?.toFixed(2)}</span>
                               )}
-                              {v.notas_visita && (
+                                {v.notas_visita && (
                                 <span className="text-slate-500 truncate">{v.notas_visita}</span>
+                              )}
+                              {v.foto_url && (
+                                <a href={v.foto_url} target="_blank" rel="noreferrer" className="text-violet-400 shrink-0">📷</a>
                               )}
                             </div>
                           ))}
