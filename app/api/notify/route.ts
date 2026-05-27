@@ -107,7 +107,7 @@ async function sendPush(
       'Content-Type': 'application/octet-stream',
       TTL: '86400',
     },
-    body,
+    body: Buffer.from(body),
   })
 }
 
