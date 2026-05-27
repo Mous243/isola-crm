@@ -163,9 +163,13 @@ async function buildPayload() {
 
 // ─── route ──────────────────────────────────────────────────────────────────
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
-    const payload = await buildPayload()
+    const { searchParams } = new URL(req.url)
+    const isTest = searchParams.get('test') === '1'
+    const payload = isTest
+      ? { title: '✅ Prueba — ISOLA CRM', body: 'Las notificaciones están funcionando correctamente.' }
+      : await buildPayload()
     if (!payload) return NextResponse.json({ ok: true, sent: 0 })
 
     const { data: subs } = await supabase.from('push_subscriptions').select('subscription')
