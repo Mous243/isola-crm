@@ -18,8 +18,15 @@ self.addEventListener('fetch', e => {
 })
 
 self.addEventListener('push', e => {
-  if (!e.data) return
-  const { title, body } = e.data.json()
+  let title = '🔔 ISOLA CRM'
+  let body = 'Tienes una notificación'
+  try {
+    if (e.data) {
+      const d = e.data.json()
+      title = d.title || title
+      body = d.body || body
+    }
+  } catch (_) {}
   e.waitUntil(
     self.registration.showNotification(title, {
       body,
