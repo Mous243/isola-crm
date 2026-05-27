@@ -7,12 +7,15 @@ export default function Catalogo() {
   const [categorias, setCategorias] = useState<string[]>([])
   const [catSel, setCatSel] = useState('Todas')
   const [buscar, setBuscar] = useState('')
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    supabase.from('productos').select('*').eq('activo', true).order('categoria').order('nombre')
-      .then(({ data }) => {
-        setProductos(data || [])
-        const cats = [...new Set((data || []).map((p: Producto) => p.categoria))]
+    supabase.from('productos').select('*').order('categoria').order('nombre')
+      .then(({ data, error: err }) => {
+        if (err) { setError(err.message); return }
+        const activos = (data || []).filter((p: Producto) => p.activo !== false)
+        setProductos(activos)
+        const cats = [...new Set(activos.map((p: Producto) => p.categoria))]
         setCategorias(cats)
       })
   }, [])
@@ -37,6 +40,7 @@ export default function Catalogo() {
     <div className="space-y-4">
       <h1 className="text-2xl font-bold text-violet-400">Catálogo ISOLA</h1>
       <p className="text-xs text-slate-500">{productos.length} productos · {categorias.length} categorías</p>
+      {error && <p className="text-red-400 text-xs bg-red-950/40 p-2 rounded">{error}</p>}
 
       <input value={buscar} onChange={e => setBuscar(e.target.value)}
         placeholder="Buscar producto..."

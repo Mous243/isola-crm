@@ -30,7 +30,7 @@ export default function RegistrarVisita() {
         setClientes(data || [])
         if (data && data.length > 0) setForm(f => ({ ...f, cliente_id: String(data[0].id) }))
       })
-    supabase.from('productos').select('*').eq('activo', true).order('categoria').order('nombre')
+    supabase.from('productos').select('*').order('categoria').order('nombre')
       .then(({ data }) => {
         setProductos(data || [])
         const cats = [...new Set((data || []).map((p: Producto) => p.categoria))]
