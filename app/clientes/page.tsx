@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { supabase, type Cliente } from '@/lib/supabase'
+import { supabase, type Cliente, type Visita } from '@/lib/supabase'
 
 const STATUS_OPTS = ['activo', 'inactivo', 'nuevo', 'perdido']
 const FREQ_OPTS = ['diario', 'semanal', 'quincenal', 'mensual']
@@ -16,6 +16,7 @@ export default function Clientes() {
   const [clientes, setClientes] = useState<Cliente[]>([])
   const [filtro, setFiltro] = useState('')
   const [expandido, setExpandido] = useState<number | null>(null)
+  const [historial, setHistorial] = useState<Record<number, Visita[]>>({})
   const [modo, setModo] = useState<'lista' | 'form'>('lista')
   const [form, setForm] = useState<Partial<Cliente>>(empty)
   const [editId, setEditId] = useState<number | null>(null)
@@ -26,6 +27,14 @@ export default function Clientes() {
     setClientes(data || [])
   }
   useEffect(() => { cargar() }, [])
+
+  const verHistorial = async (clienteId: number) => {
+    if (historial[clienteId]) return
+    const { data } = await supabase.from('visitas')
+      .select('*').eq('cliente_id', clienteId)
+      .order('fecha', { ascending: false }).limit(10)
+    setHistorial(prev => ({ ...prev, [clienteId]: data || [] }))
+  }
 
   const filtrados = clientes.filter(c =>
     c.nombre_negocio.toLowerCase().includes(filtro.toLowerCase()) ||
@@ -166,7 +175,7 @@ export default function Clientes() {
       <div className="space-y-2">
         {filtrados.map(c => (
           <div key={c.id} className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
-            <button onClick={() => setExpandido(expandido === c.id ? null : c.id)}
+            <button onClick={() => { const next = expandido === c.id ? null : c.id; setExpandido(next); if (next) verHistorial(next) }}
               className="w-full flex items-center gap-3 p-3 text-left">
               <span className="text-2xl">🏪</span>
               <div className="flex-1 min-w-0">
@@ -209,6 +218,34 @@ export default function Clientes() {
                   className="ml-2 bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded-lg text-sm">
                   ✏️ Editar
                 </button>
+
+                {/* Historial de visitas */}
+                <div className="mt-3 border-t border-slate-800 pt-3">
+                  <p className="text-xs text-slate-400 font-medium mb-2">Últimas visitas</p>
+                  {!historial[c.id]
+                    ? <p className="text-xs text-slate-500">Cargando...</p>
+                    : historial[c.id].length === 0
+                      ? <p className="text-xs text-slate-500">Sin visitas registradas</p>
+                      : <div className="space-y-1">
+                          {historial[c.id].map(v => (
+                            <div key={v.id} className="flex items-center gap-2 text-xs py-1">
+                              <span className="text-slate-400 w-20 shrink-0">{v.fecha}</span>
+                              <span className={`px-2 py-0.5 rounded-full shrink-0 ${
+                                v.resultado === 'pedido' ? 'bg-green-900/40 text-green-400' :
+                                v.resultado === 'no_compro' ? 'bg-yellow-900/40 text-yellow-400' :
+                                'bg-slate-800 text-slate-400'
+                              }`}>{v.resultado}</span>
+                              {(v.monto_pedido || 0) > 0 && (
+                                <span className="text-violet-400">${v.monto_pedido?.toFixed(2)}</span>
+                              )}
+                              {v.notas_visita && (
+                                <span className="text-slate-500 truncate">{v.notas_visita}</span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                  }
+                </div>
               </div>
             )}
           </div>

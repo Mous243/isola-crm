@@ -3,6 +3,7 @@ import { Geist } from 'next/font/google'
 import './globals.css'
 import Nav from '@/components/Nav'
 import InstallBanner from '@/components/InstallBanner'
+import PinGate from '@/components/PinGate'
 
 const geist = Geist({ subsets: ['latin'] })
 
@@ -26,13 +27,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="apple-touch-icon" href="/icon-192.png" />
       </head>
       <body className={`${geist.className} bg-slate-950 text-slate-100 min-h-screen`}>
-        <Nav />
-        <InstallBanner />
-        <main className="pb-24 md:pb-0 md:pl-56 pt-4">
-          <div className="max-w-4xl mx-auto px-4">
-            {children}
-          </div>
-        </main>
+        <PinGate>
+          <Nav />
+          <InstallBanner />
+          <main className="pb-24 md:pb-0 md:pl-56 pt-4">
+            <div className="max-w-4xl mx-auto px-4">
+              {children}
+            </div>
+          </main>
+        </PinGate>
       </body>
     </html>
   )
