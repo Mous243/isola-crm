@@ -21,10 +21,10 @@ export default function Metricas() {
       supabase.from('visitas').select('fecha, resultado, monto_pedido').gte('fecha', hace30).order('fecha'),
       supabase.from('metas').select('*').eq('periodo', periodo).eq('tipo', 'mensual').maybeSingle(),
       supabase.from('visitas').select('cliente_id, monto_pedido, resultado, clientes(nombre_negocio)')
-        .eq('resultado', 'pedido').gte('fecha', hace30),
+        .eq('resultado', 'visita_efectiva').gt('monto_pedido', 0).gte('fecha', hace30),
     ]).then(([vs, hist, m, topVs]) => {
       const v = vs.data || []
-      const conPedido = v.filter((x: any) => x.resultado === 'pedido')
+      const conPedido = v.filter((x: any) => x.resultado === 'visita_efectiva' && (x.monto_pedido || 0) > 0)
       setSemana({
         total: v.length,
         con_pedido: conPedido.length,
@@ -37,7 +37,7 @@ export default function Metricas() {
       for (const row of hist.data || []) {
         if (!porFecha[row.fecha]) porFecha[row.fecha] = { fecha: row.fecha, visitas: 0, pedidos: 0, monto: 0 }
         porFecha[row.fecha].visitas++
-        if (row.resultado === 'pedido') { porFecha[row.fecha].pedidos++; porFecha[row.fecha].monto += row.monto_pedido || 0 }
+        if (row.resultado === 'visita_efectiva' && (row.monto_pedido || 0) > 0) { porFecha[row.fecha].pedidos++; porFecha[row.fecha].monto += row.monto_pedido || 0 }
       }
       setHistorial(Object.values(porFecha).map((r: any) => ({ ...r, fecha: r.fecha.slice(5) })))
 
