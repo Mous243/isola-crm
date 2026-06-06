@@ -2,6 +2,14 @@
 import { useEffect, useState } from 'react'
 import { supabase, type Cobro, type Cliente } from '@/lib/supabase'
 
+const DIAS_CREDITO = 10
+function hoy() { return new Date().toISOString().split('T')[0] }
+function sumarDias(fechaStr: string, dias: number) {
+  const d = new Date(fechaStr + 'T00:00:00')
+  d.setDate(d.getDate() + dias)
+  return d.toISOString().split('T')[0]
+}
+
 export default function Cobros() {
   const [cobros, setCobros] = useState<Cobro[]>([])
   const [clientes, setClientes] = useState<Cliente[]>([])
@@ -19,6 +27,9 @@ export default function Cobros() {
   const [editando, setEditando] = useState(false)
   const [editForm, setEditForm] = useState({ monto: '', moneda: 'USD', descripcion: '', fecha_emision: '', fecha_vencimiento: '', estado: 'pendiente' })
   const [guardandoEdicion, setGuardandoEdicion] = useState(false)
+  const [entregaCobro, setEntregaCobro] = useState<Cobro | null>(null)
+  const [fechaEntregaInput, setFechaEntregaInput] = useState(hoy())
+  const [guardandoEntrega, setGuardandoEntrega] = useState(false)
 
   const cargar = async () => {
     const q = supabase.from('cobros').select('*, clientes(nombre_negocio, propietario, telefono)').order('fecha_vencimiento')
@@ -39,6 +50,16 @@ export default function Cobros() {
   const marcar = async (id: number, estado: string) => {
     await supabase.from('cobros').update({ estado }).eq('id', id)
     setCobros(prev => prev.map(c => c.id === id ? { ...c, estado } : c))
+  }
+
+  const confirmarEntrega = async () => {
+    if (!entregaCobro) return
+    setGuardandoEntrega(true)
+    const venc = sumarDias(fechaEntregaInput, DIAS_CREDITO)
+    await supabase.from('cobros').update({ fecha_entrega: fechaEntregaInput, fecha_vencimiento: venc }).eq('id', entregaCobro.id)
+    setCobros(prev => prev.map(c => c.id === entregaCobro.id ? { ...c, fecha_entrega: fechaEntregaInput, fecha_vencimiento: venc } : c))
+    setGuardandoEntrega(false)
+    setEntregaCobro(null)
   }
 
   const eliminar = async (id: number) => {
@@ -228,6 +249,16 @@ export default function Cobros() {
                           ❌ Cancelar
                         </button>
                       )}
+                      {c.fecha_entrega ? (
+                        <span className="bg-blue-900/30 text-blue-400 px-3 py-1 rounded-lg text-xs">
+                          📦 Entregado {c.fecha_entrega}
+                        </span>
+                      ) : (
+                        <button onClick={() => { setEntregaCobro(c); setFechaEntregaInput(hoy()) }}
+                          className="bg-blue-900/30 hover:bg-blue-900/50 text-blue-400 px-3 py-1 rounded-lg text-xs">
+                          📦 Entregado
+                        </button>
+                      )}
                       {cl?.telefono && (
                         <a href={waMsg(c)} target="_blank" rel="noreferrer"
                           className="bg-green-800/50 hover:bg-green-700/50 text-green-400 px-3 py-1 rounded-lg text-xs">
@@ -326,6 +357,29 @@ export default function Cobros() {
                   ✏️ Editar
                 </button>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {entregaCobro && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => setEntregaCobro(null)}>
+          <div className="bg-slate-900 rounded-xl border border-slate-800 p-4 w-full max-w-sm space-y-3" onClick={e => e.stopPropagation()}>
+            <h2 className="font-semibold">📦 Confirmar entrega — {(entregaCobro.clientes as any)?.nombre_negocio}</h2>
+            <label className="block">
+              <span className="text-xs text-slate-400">Fecha real de entrega de la mercancía</span>
+              <input type="date" value={fechaEntregaInput} onChange={e => setFechaEntregaInput(e.target.value)}
+                className="w-full mt-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm" />
+            </label>
+            <p className="text-xs text-slate-400">
+              El crédito ({DIAS_CREDITO} días) empieza a contar desde esta fecha · Nuevo vencimiento: <span className="text-violet-400 font-medium">{sumarDias(fechaEntregaInput, DIAS_CREDITO)}</span>
+            </p>
+            <div className="flex gap-2">
+              <button onClick={() => setEntregaCobro(null)} className="flex-1 bg-slate-800 hover:bg-slate-700 py-2 rounded-lg text-sm">Cancelar</button>
+              <button onClick={confirmarEntrega} disabled={guardandoEntrega}
+                className="flex-1 bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white py-2 rounded-lg text-sm font-medium">
+                {guardandoEntrega ? 'Guardando...' : 'Confirmar'}
+              </button>
             </div>
           </div>
         </div>
