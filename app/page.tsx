@@ -5,6 +5,15 @@ import Link from 'next/link'
 
 type Stats = { total: number; con_pedido: number; sin_pedido: number; monto: number }
 
+function waRecordatorio(c: any) {
+  const cl = c.clientes
+  const nombre = cl?.propietario || cl?.nombre_negocio || ''
+  const dias = Math.ceil((new Date(c.fecha_vencimiento).getTime() - Date.now()) / 864e5)
+  const cuando = dias <= 0 ? `venció el ${c.fecha_vencimiento}` : `vence el ${c.fecha_vencimiento} (en ${dias}d)`
+  const msg = `Hola ${nombre}, espero que estés bien 😊 Te recuerdo que la factura por ${c.moneda} ${Number(c.monto).toFixed(2)} ${cuando}. Cualquier consulta me avisas. — Daniel ISOLA`
+  return `https://wa.me/${(cl?.telefono || '').replace('+', '')}?text=${encodeURIComponent(msg)}`
+}
+
 function AlertaBanner({ stats, cobrosUrgentes, sinVisitar }: {
   stats: Stats; cobrosUrgentes: any[]; sinVisitar: any[]
 }) {
@@ -68,10 +77,11 @@ export default function Dashboard() {
     ]).then(([v, c, s]) => {
       const vs = v.data || []
       setVisitasHoy(vs)
+      const conPedido = vs.filter((x: any) => x.resultado === 'visita_efectiva' && (x.monto_pedido || 0) > 0).length
       setStats({
         total: vs.length,
-        con_pedido: vs.filter((x: any) => x.resultado === 'pedido').length,
-        sin_pedido: vs.filter((x: any) => x.resultado !== 'pedido').length,
+        con_pedido: conPedido,
+        sin_pedido: vs.length - conPedido,
         monto: vs.reduce((a: number, x: any) => a + (x.monto_pedido || 0), 0),
       })
       setCobrosUrgentes(c.data || [])
@@ -112,9 +122,17 @@ export default function Dashboard() {
             : cobrosUrgentes.map(c => {
                 const dias = Math.ceil((new Date(c.fecha_vencimiento).getTime() - Date.now()) / 864e5)
                 return (
-                  <div key={c.id} className="mb-2 p-2 bg-red-950/50 rounded-lg border border-red-900/40">
-                    <p className="font-medium text-sm">{(c.clientes as any)?.nombre_negocio}</p>
-                    <p className="text-xs text-slate-400">{c.moneda} {c.monto.toFixed(2)} · {dias <= 0 ? 'VENCIDO' : `vence en ${dias}d`}</p>
+                  <div key={c.id} className="mb-2 p-2 bg-red-950/50 rounded-lg border border-red-900/40 flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="font-medium text-sm truncate">{(c.clientes as any)?.nombre_negocio}</p>
+                      <p className="text-xs text-slate-400">{c.moneda} {c.monto.toFixed(2)} · {dias <= 0 ? 'VENCIDO' : `vence en ${dias}d`}</p>
+                    </div>
+                    {(c.clientes as any)?.telefono && (
+                      <a href={waRecordatorio(c)} target="_blank" rel="noreferrer"
+                        className="shrink-0 bg-green-800/50 hover:bg-green-700/50 text-green-400 px-2 py-1 rounded-lg text-xs">
+                        📱 Recordar
+                      </a>
+                    )}
                   </div>
                 )
               })
@@ -149,7 +167,7 @@ export default function Dashboard() {
             </div>
           : visitasHoy.map((v: any, i: number) => (
               <div key={i} className="flex items-center gap-3 py-2 border-b border-slate-800 last:border-0">
-                <span className="text-lg">{v.resultado === 'pedido' ? '✅' : '❌'}</span>
+                <span className="text-lg">{v.resultado === 'visita_efectiva' && (v.monto_pedido || 0) > 0 ? '✅' : '❌'}</span>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate">{(v.clientes as any)?.nombre_negocio}</p>
                   {v.notas_visita && <p className="text-xs text-slate-400 truncate">{v.notas_visita}</p>}

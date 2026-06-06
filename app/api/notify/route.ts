@@ -129,7 +129,7 @@ async function buildPayload() {
       .from('clientes').select('id').in('status', ['activo', 'nuevo'])
       .lt('fecha_ultima_visita', new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0])
     const { data: cobros } = await supabase
-      .from('cobros').select('id').eq('estado', 'pendiente').eq('fecha_vencimiento', en3Dias())
+      .from('cobros').select('id').neq('estado', 'pagado').lte('fecha_vencimiento', en3Dias())
     return {
       title: '☀️ Buenos días — ISOLA CRM',
       body: `${sinVisitar?.length || 0} clientes sin visitar · ${cobros?.length || 0} cobros urgentes`,
@@ -150,12 +150,18 @@ async function buildPayload() {
 
   if (h >= 9 && h < 11) {
     const { data: cobros } = await supabase
-      .from('cobros').select('monto, clientes(nombre_negocio)')
-      .eq('estado', 'pendiente').eq('fecha_vencimiento', en3Dias())
+      .from('cobros').select('monto, fecha_vencimiento, clientes(nombre_negocio)')
+      .neq('estado', 'pagado').lte('fecha_vencimiento', en3Dias())
     if (!cobros?.length) return null
+    const hoyStr = hoy()
+    const vencidos = cobros.filter((c: { fecha_vencimiento: string }) => c.fecha_vencimiento < hoyStr).length
+    const partes = []
+    if (vencidos > 0) partes.push(`${vencidos} vencido${vencidos > 1 ? 's' : ''}`)
+    const porVencer = cobros.length - vencidos
+    if (porVencer > 0) partes.push(`${porVencer} por vencer en 3 días`)
     return {
-      title: '💰 Cobros próximos — ISOLA CRM',
-      body: `${cobros.length} cobro${cobros.length > 1 ? 's' : ''} vence en 3 días`,
+      title: '💰 Cobros pendientes — ISOLA CRM',
+      body: partes.join(' · '),
     }
   }
 

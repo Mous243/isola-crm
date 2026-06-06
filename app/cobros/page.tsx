@@ -35,6 +35,12 @@ export default function Cobros() {
     cargar()
   }
 
+  const eliminar = async (id: number) => {
+    if (!confirm('¿Eliminar este cobro?')) return
+    await supabase.from('cobros').delete().eq('id', id)
+    cargar()
+  }
+
   const guardar = async () => {
     if (!form.cliente_id || !form.monto || !form.fecha_vencimiento) return alert('Faltan campos obligatorios')
     setSaving(true)
@@ -175,6 +181,10 @@ export default function Cobros() {
                       📱 WhatsApp
                     </a>
                   )}
+                  <button onClick={() => eliminar(c.id)}
+                    className="bg-red-900/30 hover:bg-red-900/50 text-red-400 px-3 py-1 rounded-lg text-xs ml-auto">
+                    🗑️
+                  </button>
                 </div>
               </div>
             )

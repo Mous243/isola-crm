@@ -23,6 +23,9 @@ export type Cliente = {
   moneda_deuda?: string
   status?: string
   tags?: string[]
+  dia_visita?: string
+  codigo_cliente?: string
+  lista_precio?: string
   created_at?: string
 }
 
@@ -38,6 +41,8 @@ export type Visita = {
   productos_pedidos?: object[]
   notas_visita?: string
   foto_url?: string
+  dias_credito?: number
+  nro_factura?: string
   created_at?: string
   clientes?: { nombre_negocio: string; propietario?: string }
 }

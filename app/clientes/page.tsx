@@ -1,9 +1,12 @@
 'use client'
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { supabase, type Cliente, type Visita } from '@/lib/supabase'
 
 const STATUS_OPTS = ['activo', 'inactivo', 'nuevo', 'perdido']
 const FREQ_OPTS = ['diario', 'semanal', 'quincenal', 'mensual']
+const DIAS = ['lunes', 'martes-a', 'martes-b', 'miercoles', 'jueves', 'viernes']
+const DIA_LABEL: Record<string, string> = { lunes: 'Lun', 'martes-a': 'Mar·A', 'martes-b': 'Mar·B', miercoles: 'Mié', jueves: 'Jue', viernes: 'Vie' }
 
 const empty: Partial<Cliente> = {
   nombre_negocio: '', propietario: '', telefono: '', direccion: '',
@@ -13,8 +16,11 @@ const empty: Partial<Cliente> = {
 }
 
 export default function Clientes() {
+  const router = useRouter()
   const [clientes, setClientes] = useState<Cliente[]>([])
   const [filtro, setFiltro] = useState('')
+  const [filtroDia, setFiltroDia] = useState('')
+  const [filtroStatus, setFiltroStatus] = useState('')
   const [expandido, setExpandido] = useState<number | null>(null)
   const [historial, setHistorial] = useState<Record<number, Visita[]>>({})
   const [modo, setModo] = useState<'lista' | 'form' | 'csv'>('lista')
@@ -31,12 +37,126 @@ export default function Clientes() {
   }
   useEffect(() => { cargar() }, [])
 
-  const descargarPlantilla = () => {
-    const headers = 'nombre_negocio,propietario,telefono,direccion,zona,sector,hora_ideal_visita,frecuencia_visita,notas_personales,status,deuda_pendiente,moneda_deuda'
-    const ejemplo = 'Bodega El Sol,Juan Pérez,584121234567,Av. Principal 123,Zona Norte,Centro,08:00-10:00,semanal,Le gusta el café,activo,0,USD'
-    const blob = new Blob([headers + '\n' + ejemplo], { type: 'text/csv' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a'); a.href = url; a.download = 'plantilla_clientes.csv'; a.click()
+  const descargarPlantilla = async () => {
+    const { jsPDF } = await import('jspdf')
+    const autoTable = (await import('jspdf-autotable')).default
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
+
+    // Encabezado
+    doc.setFillColor(124, 58, 237)
+    doc.rect(0, 0, 297, 22, 'F')
+    doc.setTextColor(255, 255, 255)
+    doc.setFontSize(14)
+    doc.setFont('helvetica', 'bold')
+    doc.text('Plantilla de Importacion de Clientes — ISOLA CRM', 14, 14)
+
+    // Instrucciones
+    doc.setTextColor(30, 41, 59)
+    doc.setFontSize(9)
+    doc.setFont('helvetica', 'normal')
+    doc.text('Como usar: 1) Abra Excel o Google Sheets  2) Copie los nombres de columna en la fila 1  3) Ingrese un cliente por fila desde la fila 2  4) Guarde como CSV  5) Importe en Clientes > CSV', 14, 30)
+    doc.setTextColor(239, 68, 68)
+    doc.text('Solo "nombre_negocio" es obligatorio. El resto puede dejarse vacio.', 14, 36)
+
+    // Cabecera CSV
+    doc.setFillColor(30, 41, 59)
+    doc.rect(14, 39, 269, 8, 'F')
+    doc.setTextColor(165, 243, 252)
+    doc.setFontSize(7)
+    doc.setFont('courier', 'normal')
+    doc.text('nombre_negocio,propietario,telefono,direccion,zona,sector,hora_ideal_visita,frecuencia_visita,notas_personales,status,deuda_pendiente,moneda_deuda', 16, 44.5)
+
+    // Tabla de campos
+    autoTable(doc, {
+      startY: 50,
+      head: [['Campo (nombre columna)', 'Descripcion', 'Ejemplo', 'Requerido']],
+      body: [
+        ['nombre_negocio', 'Nombre del negocio o razon social', 'Bodega El Sol', 'SI'],
+        ['propietario', 'Nombre del dueno o contacto principal', 'Juan Perez', 'No'],
+        ['telefono', 'Telefono en formato internacional sin +', '584121234567', 'No'],
+        ['direccion', 'Direccion completa del negocio', 'Av. Principal Casa 12, Caucaguita', 'No'],
+        ['zona', 'Zona o ciudad', 'GUARENAS', 'No'],
+        ['sector', 'Sector especifico dentro de la zona', 'El Carmen', 'No'],
+        ['hora_ideal_visita', 'Horario preferido para la visita', '08:00-10:00', 'No'],
+        ['frecuencia_visita', 'Cada cuanto se visita: diario / semanal / quincenal / mensual', 'semanal', 'No'],
+        ['notas_personales', 'Notas privadas sobre el cliente', 'Le gusta el cafe, muy puntual', 'No'],
+        ['status', 'Estado del cliente: activo / inactivo / nuevo / perdido', 'activo', 'No'],
+        ['deuda_pendiente', 'Monto de deuda pendiente (solo el numero)', '0', 'No'],
+        ['moneda_deuda', 'Moneda de la deuda: USD o VES', 'USD', 'No'],
+      ],
+      headStyles: { fillColor: [124, 58, 237], textColor: 255, fontStyle: 'bold', fontSize: 9 },
+      bodyStyles: { fontSize: 8.5 },
+      columnStyles: {
+        0: { fontStyle: 'bold', textColor: [124, 58, 237], cellWidth: 45 },
+        1: { cellWidth: 100 },
+        2: { textColor: [5, 150, 105], fontStyle: 'italic', cellWidth: 80 },
+        3: { halign: 'center', cellWidth: 25 },
+      },
+      alternateRowStyles: { fillColor: [248, 250, 252] },
+      margin: { left: 14, right: 14 },
+    })
+
+    doc.save('plantilla_clientes_ISOLA.pdf')
+  }
+
+  const exportarPDF = async () => {
+    const { jsPDF } = await import('jspdf')
+    const autoTable = (await import('jspdf-autotable')).default
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
+
+    doc.setFillColor(124, 58, 237)
+    doc.rect(0, 0, 297, 20, 'F')
+    doc.setTextColor(255, 255, 255)
+    doc.setFontSize(13)
+    doc.setFont('helvetica', 'bold')
+    doc.text('Cartera de Clientes — ISOLA CRM', 14, 13)
+    doc.setFontSize(9)
+    doc.setFont('helvetica', 'normal')
+    doc.text(`Total: ${filtrados.length} clientes   |   ${new Date().toLocaleDateString('es-VE')}`, 200, 13)
+
+    const dias: Record<string, string> = { lunes: 'LUN', martes: 'MAR', 'martes-a': 'MAR·A', 'martes-b': 'MAR·B', miercoles: 'MIE', jueves: 'JUE', viernes: 'VIE' }
+
+    autoTable(doc, {
+      startY: 24,
+      head: [['#', 'Nombre del Negocio', 'Propietario', 'Telefono', 'Zona', 'Dia Visita', 'Estado', 'Deuda']],
+      body: filtrados.map((c, i) => [
+        i + 1,
+        c.nombre_negocio,
+        c.propietario || '—',
+        c.telefono || '—',
+        c.zona || '—',
+        dias[c.dia_visita || ''] || c.dia_visita || '—',
+        c.status || 'activo',
+        (c.deuda_pendiente || 0) > 0 ? `${c.moneda_deuda} ${Number(c.deuda_pendiente).toFixed(2)}` : '—',
+      ]),
+      headStyles: { fillColor: [124, 58, 237], textColor: 255, fontStyle: 'bold', fontSize: 8 },
+      bodyStyles: { fontSize: 7.5 },
+      columnStyles: {
+        0: { cellWidth: 8, halign: 'center' },
+        1: { cellWidth: 70, fontStyle: 'bold' },
+        2: { cellWidth: 45 },
+        3: { cellWidth: 30 },
+        4: { cellWidth: 30 },
+        5: { cellWidth: 18, halign: 'center' },
+        6: { cellWidth: 18, halign: 'center' },
+        7: { cellWidth: 25, halign: 'right' },
+      },
+      alternateRowStyles: { fillColor: [248, 250, 252] },
+      didParseCell: (data) => {
+        if (data.column.index === 6 && data.section === 'body') {
+          const v = String(data.cell.raw)
+          if (v === 'activo') data.cell.styles.textColor = [5, 150, 105]
+          else if (v === 'inactivo' || v === 'perdido') data.cell.styles.textColor = [239, 68, 68]
+          else if (v === 'nuevo') data.cell.styles.textColor = [59, 130, 246]
+        }
+        if (data.column.index === 7 && data.section === 'body' && String(data.cell.raw) !== '—') {
+          data.cell.styles.textColor = [239, 68, 68]
+        }
+      },
+      margin: { left: 14, right: 14 },
+    })
+
+    doc.save(`clientes_ISOLA_${new Date().toISOString().slice(0, 10)}.pdf`)
   }
 
   const parsearCSV = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -95,11 +215,18 @@ export default function Clientes() {
     setHistorial(prev => ({ ...prev, [clienteId]: data || [] }))
   }
 
-  const filtrados = clientes.filter(c =>
-    c.nombre_negocio.toLowerCase().includes(filtro.toLowerCase()) ||
-    (c.propietario || '').toLowerCase().includes(filtro.toLowerCase()) ||
-    (c.zona || '').toLowerCase().includes(filtro.toLowerCase())
-  )
+  const filtrados = clientes.filter(c => {
+    const textMatch = c.nombre_negocio.toLowerCase().includes(filtro.toLowerCase()) ||
+      (c.propietario || '').toLowerCase().includes(filtro.toLowerCase()) ||
+      (c.zona || '').toLowerCase().includes(filtro.toLowerCase()) ||
+      (c.codigo_cliente || '').toLowerCase().includes(filtro.toLowerCase())
+    let diaMatch = true
+    if (filtroDia === 'martes-a') diaMatch = c.dia_visita === 'martes' && !(c.tags || []).includes('quincenal')
+    else if (filtroDia === 'martes-b') diaMatch = c.dia_visita === 'martes'
+    else if (filtroDia) diaMatch = c.dia_visita === filtroDia
+    const statusMatch = !filtroStatus || c.status === filtroStatus
+    return textMatch && diaMatch && statusMatch
+  })
 
   const editar = (c: Cliente) => {
     setForm({ ...c })
@@ -110,7 +237,9 @@ export default function Clientes() {
   const guardar = async () => {
     if (!form.nombre_negocio?.trim()) return alert('El nombre es obligatorio')
     setSaving(true)
-    const data = { ...form, tags: form.tags || [], productos_habituales: form.productos_habituales || [] }
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { id: _id, created_at: _cat, ...rest } = form as Cliente
+    const data = { ...rest, tags: rest.tags || [], productos_habituales: rest.productos_habituales || [] }
     if (editId) {
       await supabase.from('clientes').update(data).eq('id', editId)
     } else {
@@ -277,6 +406,10 @@ export default function Clientes() {
       <div className="flex items-center gap-3">
         <h1 className="text-2xl font-bold text-violet-400">Clientes</h1>
         <div className="ml-auto flex gap-2">
+          <button onClick={exportarPDF}
+            className="bg-slate-700 hover:bg-slate-600 text-white px-3 py-1.5 rounded-lg text-sm">
+            📄 PDF
+          </button>
           <button onClick={() => setModo('csv')}
             className="bg-slate-700 hover:bg-slate-600 text-white px-3 py-1.5 rounded-lg text-sm">
             📥 CSV
@@ -289,8 +422,30 @@ export default function Clientes() {
       </div>
 
       <input value={filtro} onChange={e => setFiltro(e.target.value)}
-        placeholder="Buscar por nombre, propietario o zona..."
+        placeholder="Buscar por nombre, propietario, zona o código..."
         className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm" />
+
+      {/* Filtro día */}
+      <div className="flex gap-1.5 flex-wrap">
+        <button onClick={() => setFiltroDia('')}
+          className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${!filtroDia ? 'bg-violet-600 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}>
+          Todos
+        </button>
+        {DIAS.map(d => (
+          <button key={d} onClick={() => setFiltroDia(filtroDia === d ? '' : d)}
+            className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${filtroDia === d ? 'bg-violet-600 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}>
+            {DIA_LABEL[d]}
+          </button>
+        ))}
+        <span className="w-px bg-slate-700 mx-1" />
+        {STATUS_OPTS.map(s => (
+          <button key={s} onClick={() => setFiltroStatus(filtroStatus === s ? '' : s)}
+            className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${filtroStatus === s ? 'bg-violet-600 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}>
+            {s}
+          </button>
+        ))}
+      </div>
+
       <p className="text-xs text-slate-500">{filtrados.length} clientes</p>
 
       <div className="space-y-2">
@@ -300,8 +455,11 @@ export default function Clientes() {
               className="w-full flex items-center gap-3 p-3 text-left">
               <span className="text-2xl">🏪</span>
               <div className="flex-1 min-w-0">
-                <p className="font-medium truncate">{c.nombre_negocio}</p>
-                <p className="text-xs text-slate-400">{c.zona || '—'} · {c.propietario || '—'}</p>
+                <div className="flex items-center gap-2">
+                  <p className="font-medium truncate">{c.nombre_negocio}</p>
+                  {c.codigo_cliente && <span className="text-xs text-violet-400 font-mono shrink-0">{c.codigo_cliente}</span>}
+                </div>
+                <p className="text-xs text-slate-400">{c.dia_visita ? ({ lunes: 'Lun', martes: (c.tags || []).includes('quincenal') ? 'Mar·B' : 'Mar·A', miercoles: 'Mié', jueves: 'Jue', viernes: 'Vie' }[c.dia_visita] ?? c.dia_visita) : '—'} · {c.zona || '—'} · {c.propietario || '—'}</p>
               </div>
               <span className={`text-xs font-medium ${statusColor[c.status || 'activo']}`}>{c.status}</span>
               <span className="text-slate-500 ml-1">{expandido === c.id ? '▲' : '▼'}</span>
@@ -329,16 +487,22 @@ export default function Clientes() {
                     ))}
                   </div>
                 )}
-                {c.telefono && (
-                  <a href={`https://wa.me/${c.telefono.replace('+', '')}`} target="_blank" rel="noreferrer"
-                    className="inline-flex items-center gap-2 bg-green-700/30 hover:bg-green-700/50 text-green-400 px-3 py-1.5 rounded-lg text-sm">
-                    📱 WhatsApp
-                  </a>
-                )}
-                <button onClick={() => editar(c)}
-                  className="ml-2 bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded-lg text-sm">
-                  ✏️ Editar
-                </button>
+                <div className="flex flex-wrap gap-2">
+                  <button onClick={() => router.push(`/visita?cliente_id=${c.id}`)}
+                    className="bg-violet-600 hover:bg-violet-700 text-white px-3 py-1.5 rounded-lg text-sm font-medium">
+                    📋 Registrar visita
+                  </button>
+                  {c.telefono && (
+                    <a href={`https://wa.me/${c.telefono.replace('+', '')}`} target="_blank" rel="noreferrer"
+                      className="inline-flex items-center gap-2 bg-green-700/30 hover:bg-green-700/50 text-green-400 px-3 py-1.5 rounded-lg text-sm">
+                      📱 WhatsApp
+                    </a>
+                  )}
+                  <button onClick={() => editar(c)}
+                    className="bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded-lg text-sm">
+                    ✏️ Editar
+                  </button>
+                </div>
 
                 {/* Historial de visitas */}
                 <div className="mt-3 border-t border-slate-800 pt-3">
