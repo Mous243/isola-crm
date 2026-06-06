@@ -133,8 +133,8 @@ export default function Metricas() {
               <XAxis dataKey="fecha" tick={{ fontSize: 10, fill: '#94a3b8' }} interval="preserveStartEnd" />
               <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} />
               <Tooltip contentStyle={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 8 }} />
-              <Bar dataKey="visitas" fill="#6366f1" radius={[2, 2, 0, 0]} />
-              <Bar dataKey="pedidos" fill="#7c3aed" radius={[2, 2, 0, 0]} />
+              <Bar dataKey="visitas" fill="#38bdf8" radius={[2, 2, 0, 0]} />
+              <Bar dataKey="pedidos" fill="#f97316" radius={[2, 2, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
           <ResponsiveContainer width="100%" height={120}>
