@@ -22,7 +22,8 @@ export default function Cobros() {
 
   const cargar = async () => {
     const q = supabase.from('cobros').select('*, clientes(nombre_negocio, propietario, telefono)').order('fecha_vencimiento')
-    if (filtroEstado !== 'todos') q.eq('estado', filtroEstado)
+    if (filtroEstado !== 'todos' && filtroEstado !== 'cancelado') q.or(`estado.eq.${filtroEstado},estado.eq.cancelado`)
+    else if (filtroEstado !== 'todos') q.eq('estado', filtroEstado)
     const { data } = await q
     setCobros(data || [])
   }
@@ -204,30 +205,36 @@ export default function Cobros() {
                   </div>
                 </div>
                 {c.descripcion && <p className="text-xs text-slate-500 mt-1">{c.descripcion}</p>}
-                <div className="flex gap-2 mt-3 flex-wrap" onClick={e => e.stopPropagation()}>
-                  {c.estado !== 'pagado' && c.estado !== 'cancelado' && (
-                    <button onClick={() => marcar(c.id, 'pagado')}
-                      className="bg-green-800/50 hover:bg-green-700/50 text-green-400 px-3 py-1 rounded-lg text-xs">
-                      ✅ Pagado
-                    </button>
-                  )}
-                  {c.estado === 'pendiente' && (
-                    <button onClick={() => marcar(c.id, 'parcial')}
-                      className="bg-yellow-800/50 hover:bg-yellow-700/50 text-yellow-400 px-3 py-1 rounded-lg text-xs">
-                      ⚡ Parcial
-                    </button>
-                  )}
-                  {c.estado !== 'pagado' && c.estado !== 'cancelado' && (
-                    <button onClick={() => marcar(c.id, 'cancelado')}
-                      className="bg-red-900/30 hover:bg-red-900/50 text-red-400 px-3 py-1 rounded-lg text-xs">
-                      ❌ Cancelar
-                    </button>
-                  )}
-                  {cl?.telefono && (
-                    <a href={waMsg(c)} target="_blank" rel="noreferrer"
-                      className="bg-green-800/50 hover:bg-green-700/50 text-green-400 px-3 py-1 rounded-lg text-xs">
-                      📱 WhatsApp
-                    </a>
+                <div className="flex gap-2 mt-3 flex-wrap items-center" onClick={e => e.stopPropagation()}>
+                  {c.estado === 'cancelado' ? (
+                    <span className="text-red-400/70 text-xs italic">Cancelado — sin acciones</span>
+                  ) : (
+                    <>
+                      {c.estado !== 'pagado' && (
+                        <button onClick={() => marcar(c.id, 'pagado')}
+                          className="bg-green-800/50 hover:bg-green-700/50 text-green-400 px-3 py-1 rounded-lg text-xs">
+                          ✅ Pagado
+                        </button>
+                      )}
+                      {c.estado === 'pendiente' && (
+                        <button onClick={() => marcar(c.id, 'parcial')}
+                          className="bg-yellow-800/50 hover:bg-yellow-700/50 text-yellow-400 px-3 py-1 rounded-lg text-xs">
+                          ⚡ Parcial
+                        </button>
+                      )}
+                      {c.estado !== 'pagado' && (
+                        <button onClick={() => marcar(c.id, 'cancelado')}
+                          className="bg-red-900/30 hover:bg-red-900/50 text-red-400 px-3 py-1 rounded-lg text-xs">
+                          ❌ Cancelar
+                        </button>
+                      )}
+                      {cl?.telefono && (
+                        <a href={waMsg(c)} target="_blank" rel="noreferrer"
+                          className="bg-green-800/50 hover:bg-green-700/50 text-green-400 px-3 py-1 rounded-lg text-xs">
+                          📱 WhatsApp
+                        </a>
+                      )}
+                    </>
                   )}
                   <button onClick={() => eliminar(c.id)}
                     className="bg-red-900/30 hover:bg-red-900/50 text-red-400 px-3 py-1 rounded-lg text-xs ml-auto">
