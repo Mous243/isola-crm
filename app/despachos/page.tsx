@@ -102,21 +102,21 @@ export default function Despachos() {
                 {its.map(i => {
                   const cl = i.clientes as any
                   return (
-                    <div key={i.id} className="flex items-center gap-2 p-2 bg-slate-800/50 rounded-lg">
-                      <span className="text-lg">{i.estado === 'entregado' ? '✅' : '⏳'}</span>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{cl?.nombre_negocio}</p>
+                    <div key={i.id} className="flex items-start gap-2 p-2 bg-slate-800/50 rounded-lg">
+                      <span className="text-lg shrink-0">{i.estado === 'entregado' ? '✅' : '⏳'}</span>
+                      <div className="flex-1 min-w-0 space-y-1.5">
+                        <p className="text-sm font-medium leading-snug">{cl?.nombre_negocio}</p>
                         <p className="text-xs text-slate-500">
                           {i.codigo_guia ? `Cód. ${i.codigo_guia} · ` : ''}{i.bultos ?? '?'} bultos
                           {i.estado === 'entregado' && i.fecha_entrega ? ` · entregado ${i.fecha_entrega}` : ''}
                         </p>
+                        {i.estado !== 'entregado' && (
+                          <button onClick={() => abrirModal(i)}
+                            className="bg-violet-600 hover:bg-violet-700 text-white px-3 py-1.5 rounded-lg text-xs">
+                            Marcar entregado
+                          </button>
+                        )}
                       </div>
-                      {i.estado !== 'entregado' && (
-                        <button onClick={() => abrirModal(i)}
-                          className="shrink-0 bg-violet-600 hover:bg-violet-700 text-white px-3 py-1.5 rounded-lg text-xs">
-                          Marcar entregado
-                        </button>
-                      )}
                     </div>
                   )
                 })}
