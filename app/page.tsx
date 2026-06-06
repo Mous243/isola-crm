@@ -9,8 +9,8 @@ function waRecordatorio(c: any) {
   const cl = c.clientes
   const nombre = cl?.propietario || cl?.nombre_negocio || ''
   const dias = Math.ceil((new Date(c.fecha_vencimiento).getTime() - Date.now()) / 864e5)
-  const cuando = dias <= 0 ? `venció el ${c.fecha_vencimiento}` : `vence el ${c.fecha_vencimiento} (en ${dias}d)`
-  const msg = `Hola ${nombre}, espero que estés bien 😊 Te recuerdo que la factura por ${c.moneda} ${Number(c.monto).toFixed(2)} ${cuando}. Cualquier consulta me avisas. — Daniel ISOLA`
+  const cuando = dias <= 0 ? `que venció el ${c.fecha_vencimiento}` : `con vencimiento el ${c.fecha_vencimiento} (en ${dias}d)`
+  const msg = `Hola ${nombre}, esperamos que todo marche bien. Le recordamos que tiene una factura pendiente por ${c.moneda} ${Number(c.monto).toFixed(2)}, ${cuando}. Quedamos atentos para coordinar el pago o resolver cualquier duda. Saludos cordiales — Guaramato, ISOLA`
   return `https://wa.me/${(cl?.telefono || '').replace('+', '')}?text=${encodeURIComponent(msg)}`
 }
 

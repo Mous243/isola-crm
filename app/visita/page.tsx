@@ -9,7 +9,7 @@ function waConfirmacionPedido(cliente: Cliente, monto: number, moneda: string, l
   const nombre = cliente.propietario || cliente.nombre_negocio
   const detalle = lineas.length > 0 ? `: ${lineas.map(l => `${l.cajas} cj ${l.nombre}`).join(', ')}` : ''
   const factura = nroFactura ? ` (factura ${nroFactura})` : ''
-  const msg = `Hola ${nombre}, te confirmo que registré tu pedido de hoy${detalle} por ${moneda} ${monto.toFixed(2)}${factura}. Te lo hago llegar según lo acordado. ¡Gracias por tu compra! — Daniel ISOLA`
+  const msg = `Hola ${nombre}, te confirmo que tu pedido de hoy quedó registrado${detalle}, por un total de ${moneda} ${monto.toFixed(2)}${factura}. Lo estaremos despachando según lo acordado. ¡Gracias por seguir confiando en nosotros! 🙌 — Guaramato, ISOLA`
   return `https://wa.me/${(cliente.telefono || '').replace('+', '')}?text=${encodeURIComponent(msg)}`
 }
 

@@ -130,7 +130,9 @@ export default function Cobros() {
   const waMsg = (c: Cobro) => {
     const cl = c.clientes as any
     const nombre = cl?.propietario || cl?.nombre_negocio || ''
-    const msg = `Hola ${nombre}, espero que estés bien 😊 Solo recordarte que la factura por ${c.moneda} ${c.monto.toFixed(2)} vence el ${c.fecha_vencimiento}. Cualquier consulta me avisas. — Daniel ISOLA`
+    const dias = Math.ceil((new Date(c.fecha_vencimiento).getTime() - Date.now()) / 864e5)
+    const cuando = dias <= 0 ? `que venció el ${c.fecha_vencimiento}` : `con vencimiento el ${c.fecha_vencimiento} (en ${dias}d)`
+    const msg = `Hola ${nombre}, esperamos que todo marche bien. Le recordamos que tiene una factura pendiente por ${c.moneda} ${c.monto.toFixed(2)}, ${cuando}. Quedamos atentos para coordinar el pago o resolver cualquier duda. Saludos cordiales — Guaramato, ISOLA`
     return `https://wa.me/${(cl?.telefono || '').replace('+', '')}?text=${encodeURIComponent(msg)}`
   }
 
