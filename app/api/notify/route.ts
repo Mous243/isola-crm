@@ -51,7 +51,7 @@ async function buildPayload() {
     const monto = visitas?.reduce((a: number, v: { monto_pedido?: number }) => a + (v.monto_pedido || 0), 0) || 0
     return {
       title: '🌙 Resumen del día — ISOLA CRM',
-      body: `${conPedido}/${total} visitas con pedido · $${monto.toFixed(0)} total`,
+      body: `${conPedido}/${total} visitas con pedido · $${monto.toFixed(0)} total\n\n📦 ¿Ya te llegó la guía de despacho de hoy? Pásamela por aquí para registrarla en /despachos.`,
     }
   }
 
