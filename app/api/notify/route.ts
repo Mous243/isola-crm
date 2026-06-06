@@ -2,112 +2,19 @@ export const runtime = 'nodejs'
 
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
-import { webcrypto } from 'node:crypto'
-
-const { subtle, getRandomValues } = webcrypto
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 )
 
-// ─── utils ─────────────────────────────────────────────────────────────────
+// ─── Telegram ───────────────────────────────────────────────────────────────
 
-const enc = new TextEncoder()
-
-function b64u(b: Uint8Array): string {
-  return Buffer.from(b).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
-}
-
-function db64u(s: string): Uint8Array {
-  return new Uint8Array(Buffer.from(s.replace(/-/g, '+').replace(/_/g, '/'), 'base64'))
-}
-
-// ─── VAPID JWT (ES256) ──────────────────────────────────────────────────────
-
-async function vapidJWT(audience: string): Promise<string> {
-  const pub = db64u(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!)
-  const key = await subtle.importKey(
-    'jwk',
-    { kty: 'EC', crv: 'P-256', d: process.env.VAPID_PRIVATE_KEY!, x: b64u(pub.slice(1, 33)), y: b64u(pub.slice(33, 65)) },
-    { name: 'ECDSA', namedCurve: 'P-256' },
-    false,
-    ['sign']
-  )
-  const h = b64u(enc.encode(JSON.stringify({ typ: 'JWT', alg: 'ES256' })))
-  const p = b64u(enc.encode(JSON.stringify({
-    aud: audience,
-    exp: Math.floor(Date.now() / 1000) + 43200,
-    sub: process.env.VAPID_EMAIL!,
-  })))
-  const msg = `${h}.${p}`
-  const sig = new Uint8Array(await subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, key, enc.encode(msg)))
-  return `${msg}.${b64u(sig)}`
-}
-
-// ─── RFC 8291 payload encryption (aes128gcm) ───────────────────────────────
-
-async function encryptPayload(payload: string, p256dh: string, auth: string): Promise<Uint8Array> {
-  const clientPub = db64u(p256dh)
-  const authSec = db64u(auth)
-
-  const serverKP = await subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveBits'])
-  const serverPub = new Uint8Array(await subtle.exportKey('raw', serverKP.publicKey))
-
-  const clientKey = await subtle.importKey('raw', clientPub, { name: 'ECDH', namedCurve: 'P-256' }, false, [])
-  const ecdhSecret = new Uint8Array(await subtle.deriveBits({ name: 'ECDH', public: clientKey }, serverKP.privateKey, 256))
-
-  // IKM = HKDF(salt=auth_secret, IKM=ecdh_secret, info="WebPush: info\0"||clientPub||serverPub, L=32)
-  const ecdhKey = await subtle.importKey('raw', ecdhSecret, 'HKDF', false, ['deriveBits'])
-  const ikmInfo = new Uint8Array([...enc.encode('WebPush: info\x00'), ...clientPub, ...serverPub])
-  const ikm = new Uint8Array(await subtle.deriveBits(
-    { name: 'HKDF', hash: 'SHA-256', salt: authSec, info: ikmInfo }, ecdhKey, 256
-  ))
-
-  const salt = getRandomValues(new Uint8Array(16))
-
-  const cekInfo = enc.encode('Content-Encoding: aes128gcm\x00\x01')
-  const nonceInfo = enc.encode('Content-Encoding: nonce\x00\x01')
-
-  const ikmKey1 = await subtle.importKey('raw', ikm, 'HKDF', false, ['deriveBits'])
-  const cek = new Uint8Array(await subtle.deriveBits(
-    { name: 'HKDF', hash: 'SHA-256', salt, info: cekInfo }, ikmKey1, 128
-  ))
-
-  const ikmKey2 = await subtle.importKey('raw', ikm, 'HKDF', false, ['deriveBits'])
-  const nonce = new Uint8Array(await subtle.deriveBits(
-    { name: 'HKDF', hash: 'SHA-256', salt, info: nonceInfo }, ikmKey2, 96
-  ))
-
-  const record = new Uint8Array([...enc.encode(payload), 0x02])
-  const cekKey = await subtle.importKey('raw', cek, { name: 'AES-GCM' }, false, ['encrypt'])
-  const ciphertext = new Uint8Array(await subtle.encrypt(
-    { name: 'AES-GCM', iv: nonce, tagLength: 128 }, cekKey, record
-  ))
-
-  // Header: salt(16) + rs(4,BE) + idlen(1) + serverPub(65) + ciphertext
-  const rs = new Uint8Array(4)
-  new DataView(rs.buffer).setUint32(0, 4096)
-  return new Uint8Array([...salt, ...rs, serverPub.length, ...serverPub, ...ciphertext])
-}
-
-// ─── send one push ──────────────────────────────────────────────────────────
-
-async function sendPush(
-  sub: { endpoint: string; keys: { p256dh: string; auth: string } },
-  payload: { title: string; body: string }
-): Promise<{ status: number; text: string }> {
-  const body = await encryptPayload(JSON.stringify(payload), sub.keys.p256dh, sub.keys.auth)
-  const jwt = await vapidJWT(new URL(sub.endpoint).origin)
-  const res = await fetch(sub.endpoint, {
+async function sendTelegram(text: string): Promise<{ status: number; text: string }> {
+  const res = await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
     method: 'POST',
-    headers: {
-      Authorization: `vapid t=${jwt},k=${process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!}`,
-      'Content-Encoding': 'aes128gcm',
-      'Content-Type': 'application/octet-stream',
-      TTL: '86400',
-    },
-    body: Buffer.from(body),
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ chat_id: process.env.TELEGRAM_CHAT_ID, text }),
   })
   return { status: res.status, text: await res.text() }
 }
@@ -179,22 +86,8 @@ export async function GET(req: Request) {
       : await buildPayload()
     if (!payload) return NextResponse.json({ ok: true, sent: 0 })
 
-    const { data: subs } = await supabase.from('push_subscriptions').select('subscription')
-    if (!subs?.length) return NextResponse.json({ ok: true, sent: 0 })
-
-    let sent = 0
-    const results = []
-    for (const row of subs) {
-      try {
-        const r = await sendPush(row.subscription, payload)
-        if (r.status < 300) sent++
-        results.push(r)
-      } catch (err) {
-        results.push({ status: 0, text: String(err) })
-      }
-    }
-
-    return NextResponse.json({ ok: true, sent, results })
+    const r = await sendTelegram(`${payload.title}\n${payload.body}`)
+    return NextResponse.json({ ok: true, sent: r.status < 300 ? 1 : 0, result: r })
   } catch (e: unknown) {
     return NextResponse.json({ error: String(e) }, { status: 500 })
   }
