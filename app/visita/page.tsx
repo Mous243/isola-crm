@@ -218,9 +218,21 @@ export default function RegistrarVisita() {
     if (tieneProductos) setForm(f => ({ ...f, resultado: 'visita_efectiva' }))
   }, [tieneProductos])
 
+  const facturaDuplicada = async (numero: string, excluirId?: number) => {
+    if (!numero) return false
+    const completo = `600${numero}`
+    let q = supabase.from('visitas').select('id').eq('nro_factura', completo).limit(1)
+    if (excluirId) q = q.neq('id', excluirId)
+    const { data } = await q
+    return (data?.length || 0) > 0
+  }
+
   const guardar = async () => {
     if (!form.cliente_id) return alert('Selecciona un cliente')
     if (form.resultado === 'otro' && !form.resultado_otro.trim()) return alert('Escribe el caso puntual')
+    if (form.nro_factura && await facturaDuplicada(form.nro_factura)) {
+      return alert(`La factura 600${form.nro_factura} ya está registrada. Verifica el número.`)
+    }
     setSaving(true)
     const resultadoFinal = form.resultado === 'otro' ? form.resultado_otro.trim() : form.resultado
     const montoFinal = form.monto_manual || totalCalculado
@@ -298,6 +310,9 @@ export default function RegistrarVisita() {
 
   const guardarEdicion = async () => {
     if (!editVisita) return
+    if (editForm.nro_factura && await facturaDuplicada(editForm.nro_factura, editVisita.id)) {
+      return alert(`La factura 600${editForm.nro_factura} ya está registrada en otra visita.`)
+    }
     setSavingEdit(true)
     const resultadoFinal = editForm.resultado === 'otro' ? editForm.resultado_otro.trim() : editForm.resultado
     const editLineas: LineaPedido[] = productos
