@@ -8,6 +8,7 @@ export default function Metricas() {
   const [historial, setHistorial] = useState<any[]>([])
   const [top, setTop] = useState<any[]>([])
   const [meta, setMeta] = useState<any>(null)
+  const [mes, setMes] = useState<{ monto: number; visitas: number }>({ monto: 0, visitas: 0 })
   const [metaForm, setMetaForm] = useState({ monto: '', visitas: '' })
   const [editMeta, setEditMeta] = useState(false)
   const periodo = new Date().toISOString().slice(0, 7)
@@ -16,13 +17,16 @@ export default function Metricas() {
     const hace7 = new Date(Date.now() - 6 * 864e5).toISOString().split('T')[0]
     const hace30 = new Date(Date.now() - 29 * 864e5).toISOString().split('T')[0]
 
+    const inicioMes = `${periodo}-01`
+
     Promise.all([
       supabase.from('visitas').select('resultado, monto_pedido, cliente_id').gte('fecha', hace7),
       supabase.from('visitas').select('fecha, resultado, monto_pedido').gte('fecha', hace30).order('fecha'),
       supabase.from('metas').select('*').eq('periodo', periodo).eq('tipo', 'mensual').maybeSingle(),
       supabase.from('visitas').select('cliente_id, monto_pedido, resultado, clientes(nombre_negocio)')
         .eq('resultado', 'visita_efectiva').gt('monto_pedido', 0).gte('fecha', hace30),
-    ]).then(([vs, hist, m, topVs]) => {
+      supabase.from('visitas').select('resultado, monto_pedido').gte('fecha', inicioMes),
+    ]).then(([vs, hist, m, topVs, mesVs]) => {
       const v = vs.data || []
       const conPedido = v.filter((x: any) => x.resultado === 'visita_efectiva' && (x.monto_pedido || 0) > 0)
       setSemana({
@@ -50,6 +54,11 @@ export default function Metricas() {
       setTop(Object.values(porCliente).sort((a: any, b: any) => b.monto - a.monto).slice(0, 8))
 
       setMeta(m.data)
+      const mv = mesVs.data || []
+      setMes({
+        monto: mv.reduce((a: number, x: any) => a + (x.monto_pedido || 0), 0),
+        visitas: mv.length,
+      })
     })
   }, [])
 
@@ -110,12 +119,12 @@ export default function Metricas() {
           <div className="space-y-3">
             <div>
               <div className="flex justify-between text-sm mb-1">
-                <span>Monto</span>
-                <span className="text-violet-400">${(semana?.monto || 0).toFixed(0)} / ${meta.meta_monto}</span>
+                <span>Monto del mes</span>
+                <span className="text-violet-400">${mes.monto.toFixed(0)} / ${meta.meta_monto}</span>
               </div>
               <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
                 <div className="h-full bg-violet-600 rounded-full transition-all"
-                  style={{ width: `${Math.min((semana?.monto || 0) / meta.meta_monto * 100, 100)}%` }} />
+                  style={{ width: `${Math.min(mes.monto / meta.meta_monto * 100, 100)}%` }} />
               </div>
             </div>
           </div>
