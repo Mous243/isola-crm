@@ -171,7 +171,7 @@ export default function Cobros() {
         <div className="flex items-center gap-3 flex-wrap">
           <select value={filtroEstado} onChange={e => setFiltroEstado(e.target.value)}
             className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm">
-            {['pendiente', 'parcial', 'pagado', 'todos'].map(e => <option key={e}>{e}</option>)}
+            {['pendiente', 'parcial', 'pagado', 'cancelado', 'todos'].map(e => <option key={e}>{e}</option>)}
           </select>
           <input value={busqueda} onChange={e => setBusqueda(e.target.value)}
             placeholder="🔍 Buscar por cliente, dueño o N° factura..."
@@ -190,7 +190,7 @@ export default function Cobros() {
             const dias = Math.ceil((new Date(c.fecha_vencimiento).getTime() - Date.now()) / 864e5)
             return (
               <div key={c.id} onClick={() => abrirDetalle(c)}
-                className="bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-xl p-4 cursor-pointer transition-colors">
+                className={`border rounded-xl p-4 cursor-pointer transition-colors ${c.estado === 'cancelado' ? 'bg-red-950/30 border-red-900/50 hover:border-red-800' : 'bg-slate-900 border-slate-800 hover:border-slate-700'}`}>
                 <div className="flex items-start justify-between">
                   <div>
                     <p className="font-medium">{cl?.nombre_negocio}</p>
@@ -205,7 +205,7 @@ export default function Cobros() {
                 </div>
                 {c.descripcion && <p className="text-xs text-slate-500 mt-1">{c.descripcion}</p>}
                 <div className="flex gap-2 mt-3 flex-wrap" onClick={e => e.stopPropagation()}>
-                  {c.estado !== 'pagado' && (
+                  {c.estado !== 'pagado' && c.estado !== 'cancelado' && (
                     <button onClick={() => marcar(c.id, 'pagado')}
                       className="bg-green-800/50 hover:bg-green-700/50 text-green-400 px-3 py-1 rounded-lg text-xs">
                       ✅ Pagado
@@ -215,6 +215,12 @@ export default function Cobros() {
                     <button onClick={() => marcar(c.id, 'parcial')}
                       className="bg-yellow-800/50 hover:bg-yellow-700/50 text-yellow-400 px-3 py-1 rounded-lg text-xs">
                       ⚡ Parcial
+                    </button>
+                  )}
+                  {c.estado !== 'pagado' && c.estado !== 'cancelado' && (
+                    <button onClick={() => marcar(c.id, 'cancelado')}
+                      className="bg-red-900/30 hover:bg-red-900/50 text-red-400 px-3 py-1 rounded-lg text-xs">
+                      ❌ Cancelar
                     </button>
                   )}
                   {cl?.telefono && (
@@ -293,7 +299,7 @@ export default function Cobros() {
                   <span className="text-xs text-slate-400">Estado</span>
                   <select value={editForm.estado} onChange={e => setEditForm({ ...editForm, estado: e.target.value })}
                     className="w-full mt-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm">
-                    {['pendiente', 'parcial', 'pagado'].map(e => <option key={e}>{e}</option>)}
+                    {['pendiente', 'parcial', 'pagado', 'cancelado'].map(e => <option key={e}>{e}</option>)}
                   </select>
                 </label>
               </div>
