@@ -37,7 +37,7 @@ export default function Cobros() {
 
   const marcar = async (id: number, estado: string) => {
     await supabase.from('cobros').update({ estado }).eq('id', id)
-    cargar()
+    setCobros(prev => prev.map(c => c.id === id ? { ...c, estado } : c))
   }
 
   const eliminar = async (id: number) => {
