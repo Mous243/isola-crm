@@ -55,7 +55,31 @@ export type Cobro = {
   descripcion?: string
   fecha_emision?: string
   fecha_vencimiento: string
+  fecha_entrega?: string
   estado?: string
+  created_at?: string
+  clientes?: { nombre_negocio: string; propietario?: string; telefono?: string }
+}
+
+export type Despacho = {
+  id: number
+  numero_guia: string
+  fecha_guia: string
+  conductor_nombre?: string
+  conductor_telefono?: string
+  placa?: string
+  created_at?: string
+}
+
+export type DespachoItem = {
+  id: number
+  despacho_id: number
+  cliente_id: number
+  codigo_guia?: string
+  bultos?: number
+  estado?: string
+  fecha_entrega?: string
+  cobro_id?: number
   created_at?: string
   clientes?: { nombre_negocio: string; propietario?: string; telefono?: string }
 }

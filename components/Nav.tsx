@@ -7,6 +7,7 @@ const links = [
   { href: '/clientes',  label: 'Clientes',   icon: '👥' },
   { href: '/visita',    label: 'Visita',     icon: '📝' },
   { href: '/cobros',    label: 'Cobros',     icon: '💰' },
+  { href: '/despachos', label: 'Despachos',  icon: '🚚' },
   { href: '/metricas',  label: 'Métricas',   icon: '📊' },
   { href: '/catalogo',  label: 'Catálogo',   icon: '📦' },
 ]
