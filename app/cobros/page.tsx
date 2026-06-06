@@ -32,7 +32,7 @@ export default function Cobros() {
   const [guardandoEntrega, setGuardandoEntrega] = useState(false)
 
   const cargar = async () => {
-    const q = supabase.from('cobros').select('*, clientes(nombre_negocio, propietario, telefono)').order('fecha_vencimiento')
+    const q = supabase.from('cobros').select('*, clientes(nombre_negocio, propietario, telefono, codigo_cliente)').order('fecha_vencimiento')
     if (filtroEstado !== 'todos' && filtroEstado !== 'cancelado') q.or(`estado.eq.${filtroEstado},estado.eq.cancelado`)
     else if (filtroEstado !== 'todos') q.eq('estado', filtroEstado)
     const { data } = await q
@@ -116,6 +116,7 @@ export default function Cobros() {
     const cl = c.clientes as any
     return cl?.nombre_negocio?.toLowerCase().includes(q)
       || cl?.propietario?.toLowerCase().includes(q)
+      || cl?.codigo_cliente?.toLowerCase().includes(q)
       || (c.descripcion || '').toLowerCase().includes(q)
   })
 
