@@ -5,6 +5,14 @@ import { supabase, type Cliente, type Producto, type Visita } from '@/lib/supaba
 
 type LineaPedido = { nombre: string; codigo?: string; cajas: number; precio_caja: number; subtotal: number; imagen_url?: string }
 
+function waConfirmacionPedido(cliente: Cliente, monto: number, moneda: string, lineas: LineaPedido[], nroFactura: string | null) {
+  const nombre = cliente.propietario || cliente.nombre_negocio
+  const detalle = lineas.length > 0 ? `: ${lineas.map(l => `${l.cajas} cj ${l.nombre}`).join(', ')}` : ''
+  const factura = nroFactura ? ` (factura ${nroFactura})` : ''
+  const msg = `Hola ${nombre}, te confirmo que registré tu pedido de hoy${detalle} por ${moneda} ${monto.toFixed(2)}${factura}. Te lo hago llegar según lo acordado. ¡Gracias por tu compra! — Daniel ISOLA`
+  return `https://wa.me/${(cliente.telefono || '').replace('+', '')}?text=${encodeURIComponent(msg)}`
+}
+
 const RESULTADO_LABEL: Record<string, string> = {
   visita_efectiva: 'Visita efectiva',
   cliente_con_stock: 'Con stock',
@@ -59,6 +67,7 @@ export default function RegistrarVisita() {
   const [proximaFactura, setProximaFactura] = useState('')
   const [cobrosCliente, setCobrosCliente] = useState<{ id: number; monto: number; moneda: string; estado: string; descripcion: string | null; fecha_vencimiento: string }[]>([])
   const [siguienteCliente, setSiguienteCliente] = useState<Cliente | null>(null)
+  const [confirmacionWA, setConfirmacionWA] = useState<{ telefono: string; link: string } | null>(null)
   const [visitadosIds, setVisitadosIds] = useState<Set<number>>(new Set())
   const [montoHoy, setMontoHoy] = useState(0)
   const [mostrarRuta, setMostrarRuta] = useState(false)
@@ -116,7 +125,7 @@ export default function RegistrarVisita() {
     setForm(f => ({ ...f, cliente_id: '' }))
     setBusqueda('')
     setMostrarLista(false)
-    supabase.from('clientes').select('id, nombre_negocio, zona, dia_visita, codigo_cliente, fecha_ultima_visita, deuda_pendiente, moneda_deuda, telefono')
+    supabase.from('clientes').select('id, nombre_negocio, propietario, zona, dia_visita, codigo_cliente, fecha_ultima_visita, deuda_pendiente, moneda_deuda, telefono')
       .in('status', ['activo', 'nuevo'])
       .eq('dia_visita', dia)
       .order('nombre_negocio')
@@ -263,6 +272,14 @@ export default function RegistrarVisita() {
     }
     await supabase.from('clientes').update({ fecha_ultima_visita: form.fecha }).eq('id', +form.cliente_id)
     setSaving(false)
+    if (resultadoFinal === 'visita_efectiva' && montoFinal > 0 && clienteSel?.telefono) {
+      setConfirmacionWA({
+        telefono: clienteSel.telefono,
+        link: waConfirmacionPedido(clienteSel, montoFinal, form.moneda, lineas, form.nro_factura ? `600${form.nro_factura}` : null),
+      })
+    } else {
+      setConfirmacionWA(null)
+    }
     setOk(true)
     setVisitasHoy(v => v + 1)
     setVisitadosIds(prev => new Set(prev).add(+form.cliente_id))
@@ -390,6 +407,7 @@ export default function RegistrarVisita() {
                           setForm(f => ({ ...f, cliente_id: String(c.id) }))
                           setMostrarLista(false)
                           setOk(false)
+                          setConfirmacionWA(null)
                           setMostrarRuta(false)
                         }}
                           className={`w-full flex items-center gap-2 text-left text-xs rounded-lg px-2 py-1.5 ${String(c.id) === form.cliente_id ? 'bg-violet-900/30' : 'bg-slate-800/50 hover:bg-slate-800'}`}>
@@ -506,6 +524,13 @@ export default function RegistrarVisita() {
       {tab === 'registrar' && ok && (
         <div className="bg-green-900/40 border border-green-700/50 text-green-400 rounded-xl p-3 space-y-2">
           <p className="text-center font-medium">✅ Visita registrada correctamente</p>
+          {confirmacionWA && (
+            <a href={confirmacionWA.link} target="_blank" rel="noreferrer"
+              onClick={() => setConfirmacionWA(null)}
+              className="block w-full text-center bg-green-800/60 hover:bg-green-700/60 border border-green-600 text-green-300 rounded-lg py-2 text-sm font-medium">
+              📱 Confirmar pedido por WhatsApp
+            </a>
+          )}
           {siguienteCliente && (
             <button
               onClick={() => {
@@ -513,6 +538,7 @@ export default function RegistrarVisita() {
                 setOk(false)
                 setSiguienteCliente(null)
                 setMostrarLista(false)
+                setConfirmacionWA(null)
               }}
               className="w-full bg-green-800/60 hover:bg-green-700/60 border border-green-600 text-green-300 rounded-lg py-2 text-sm font-medium">
               → Siguiente: {siguienteCliente.nombre_negocio}
