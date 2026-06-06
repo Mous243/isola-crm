@@ -261,8 +261,10 @@ export default function Cobros() {
                       )}
                       {cl?.telefono && (
                         <a href={waMsg(c)} target="_blank" rel="noreferrer"
-                          className="bg-green-800/50 hover:bg-green-700/50 text-green-400 px-3 py-1 rounded-lg text-xs">
-                          📱 WhatsApp
+                          className={dias <= 3
+                            ? 'bg-orange-600/80 hover:bg-orange-600 text-white px-3 py-1 rounded-lg text-xs font-medium animate-pulse'
+                            : 'bg-green-800/50 hover:bg-green-700/50 text-green-400 px-3 py-1 rounded-lg text-xs'}>
+                          {dias <= 3 ? '📱 Recordar ahora' : '📱 WhatsApp'}
                         </a>
                       )}
                     </>
