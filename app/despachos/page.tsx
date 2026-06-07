@@ -20,6 +20,10 @@ export default function Despachos() {
   const [cobrosPendientes, setCobrosPendientes] = useState<Cobro[]>([])
   const [cobroSel, setCobroSel] = useState<string>('')
   const [guardando, setGuardando] = useState(false)
+  const [devModal, setDevModal] = useState<DespachoItem | null>(null)
+  const [tipoDevolucion, setTipoDevolucion] = useState<'definitiva' | 'reentrega'>('reentrega')
+  const [motivoDev, setMotivoDev] = useState('')
+  const [procesandoDev, setProcesandoDev] = useState(false)
 
   const cargar = async () => {
     const { data: d } = await supabase.from('despachos').select('*').order('fecha_guia', { ascending: false })
@@ -56,6 +60,33 @@ export default function Despachos() {
     }
     setGuardando(false)
     setModal(null)
+    cargar()
+  }
+
+  const procesarDevolucion = async () => {
+    if (!devModal) return
+    setProcesandoDev(true)
+    if (tipoDevolucion === 'definitiva') {
+      await supabase.from('despacho_items').update({
+        estado: 'devuelto',
+        notas_devolucion: motivoDev || null,
+      }).eq('id', devModal.id)
+      if (devModal.cobro_id) {
+        await supabase.from('cobros').update({ estado: 'cancelado' }).eq('id', devModal.cobro_id)
+      }
+    } else {
+      await supabase.from('despacho_items').update({
+        estado: 'pendiente_reentrega',
+        fecha_entrega: null,
+        notas_devolucion: motivoDev || null,
+      }).eq('id', devModal.id)
+      if (devModal.cobro_id) {
+        await supabase.from('cobros').update({ fecha_entrega: null }).eq('id', devModal.cobro_id)
+      }
+    }
+    setProcesandoDev(false)
+    setDevModal(null)
+    setMotivoDev('')
     cargar()
   }
 
@@ -101,21 +132,36 @@ export default function Despachos() {
                 {its.length === 0 && <p className="text-sm text-slate-500 px-1">Sin clientes tuyos en esta guía.</p>}
                 {its.map(i => {
                   const cl = i.clientes as any
+                  const estadoIcon = i.estado === 'entregado' ? '✅' : i.estado === 'devuelto' ? '❌' : i.estado === 'pendiente_reentrega' ? '🔄' : '⏳'
+                  const estadoBg = i.estado === 'entregado' ? 'bg-green-950/40' : i.estado === 'devuelto' ? 'bg-red-950/40' : i.estado === 'pendiente_reentrega' ? 'bg-yellow-950/40' : 'bg-slate-800/50'
                   return (
-                    <div key={i.id} className="flex items-start gap-2 p-2 bg-slate-800/50 rounded-lg">
-                      <span className="text-lg shrink-0">{i.estado === 'entregado' ? '✅' : '⏳'}</span>
+                    <div key={i.id} className={`flex items-start gap-2 p-2 ${estadoBg} rounded-lg`}>
+                      <span className="text-lg shrink-0">{estadoIcon}</span>
                       <div className="flex-1 min-w-0 space-y-1.5">
                         <p className="text-sm font-medium leading-snug">{cl?.nombre_negocio}</p>
                         <p className="text-xs text-slate-500">
                           {i.codigo_guia ? `Cód. ${i.codigo_guia} · ` : ''}{i.bultos ?? '?'} bultos
                           {i.estado === 'entregado' && i.fecha_entrega ? ` · entregado ${i.fecha_entrega}` : ''}
+                          {i.estado === 'pendiente_reentrega' ? ' · pendiente reentrega' : ''}
+                          {i.estado === 'devuelto' ? ' · devuelto definitivo' : ''}
                         </p>
-                        {i.estado !== 'entregado' && (
-                          <button onClick={() => abrirModal(i)}
-                            className="bg-violet-600 hover:bg-violet-700 text-white px-3 py-1.5 rounded-lg text-xs">
-                            Marcar entregado
-                          </button>
+                        {(i as any).notas_devolucion && (
+                          <p className="text-xs text-yellow-400 italic">Motivo: {(i as any).notas_devolucion}</p>
                         )}
+                        <div className="flex gap-2 flex-wrap">
+                          {(i.estado === 'pendiente' || i.estado === 'pendiente_reentrega') && (
+                            <button onClick={() => abrirModal(i)}
+                              className="bg-violet-600 hover:bg-violet-700 text-white px-3 py-1.5 rounded-lg text-xs">
+                              Marcar entregado
+                            </button>
+                          )}
+                          {i.estado === 'entregado' && (
+                            <button onClick={() => { setDevModal(i); setTipoDevolucion('reentrega'); setMotivoDev('') }}
+                              className="bg-orange-800/50 hover:bg-orange-700/50 text-orange-400 px-3 py-1.5 rounded-lg text-xs">
+                              ↩ Devolver
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
                   )
@@ -160,6 +206,46 @@ export default function Despachos() {
               <button onClick={confirmarEntrega} disabled={guardando}
                 className="flex-1 bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white py-2 rounded-lg text-sm font-medium">
                 {guardando ? 'Guardando...' : 'Confirmar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {devModal && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => setDevModal(null)}>
+          <div className="bg-slate-900 rounded-xl border border-slate-800 p-4 w-full max-w-sm space-y-3" onClick={e => e.stopPropagation()}>
+            <h2 className="font-semibold">↩ Devolver — {(devModal.clientes as any)?.nombre_negocio}</h2>
+
+            <div className="grid grid-cols-2 gap-2">
+              <button onClick={() => setTipoDevolucion('reentrega')}
+                className={`py-2.5 rounded-lg text-sm font-medium border transition-colors ${tipoDevolucion === 'reentrega' ? 'bg-yellow-600 border-yellow-500 text-white' : 'bg-slate-800 border-slate-700 text-slate-400'}`}>
+                🔄 Reintentar
+              </button>
+              <button onClick={() => setTipoDevolucion('definitiva')}
+                className={`py-2.5 rounded-lg text-sm font-medium border transition-colors ${tipoDevolucion === 'definitiva' ? 'bg-red-700 border-red-600 text-white' : 'bg-slate-800 border-slate-700 text-slate-400'}`}>
+                ❌ Definitivo
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-400">
+              {tipoDevolucion === 'reentrega'
+                ? 'El pedido vuelve al camión. Podrás marcarlo como entregado cuando se concrete la reentrega.'
+                : 'El pedido se cancela definitivamente. El cobro asociado también se cancelará.'}
+            </p>
+
+            <label className="block">
+              <span className="text-xs text-slate-400">Motivo (opcional)</span>
+              <input type="text" value={motivoDev} onChange={e => setMotivoDev(e.target.value)}
+                placeholder="Ej: cliente ausente, local cerrado..."
+                className="w-full mt-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm" />
+            </label>
+
+            <div className="flex gap-2">
+              <button onClick={() => setDevModal(null)} className="flex-1 bg-slate-800 hover:bg-slate-700 py-2 rounded-lg text-sm">Cancelar</button>
+              <button onClick={procesarDevolucion} disabled={procesandoDev}
+                className={`flex-1 disabled:opacity-50 text-white py-2 rounded-lg text-sm font-medium ${tipoDevolucion === 'definitiva' ? 'bg-red-700 hover:bg-red-800' : 'bg-yellow-600 hover:bg-yellow-700'}`}>
+                {procesandoDev ? 'Procesando...' : 'Confirmar'}
               </button>
             </div>
           </div>
