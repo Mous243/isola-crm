@@ -132,6 +132,18 @@ export default function Metricas() {
                   style={{ width: `${Math.min(mes.monto / meta.meta_monto * 100, 100)}%` }} />
               </div>
             </div>
+            {meta.meta_visitas > 0 && (
+              <div>
+                <div className="flex justify-between text-sm mb-1">
+                  <span>Visitas del mes</span>
+                  <span className="text-blue-400">{mes.visitas} / {meta.meta_visitas}</span>
+                </div>
+                <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
+                  <div className="h-full bg-blue-500 rounded-full transition-all"
+                    style={{ width: `${Math.min(mes.visitas / meta.meta_visitas * 100, 100)}%` }} />
+                </div>
+              </div>
+            )}
             {meta.meta_cobranza > 0 && (
               <div>
                 <div className="flex justify-between text-sm mb-1">
