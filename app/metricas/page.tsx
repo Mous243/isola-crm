@@ -11,6 +11,9 @@ export default function Metricas() {
   const [mes, setMes] = useState<{ monto: number; visitas: number; cobranza: number; visitas_efectivas: number }>({ monto: 0, visitas: 0, cobranza: 0, visitas_efectivas: 0 })
   const [metaForm, setMetaForm] = useState({ monto: '', visitas: '', cobranza: '', visitas_efectivas: '' })
   const [editMeta, setEditMeta] = useState(false)
+  const [metasVar, setMetasVar] = useState<any[]>([])
+  const [addingVar, setAddingVar] = useState(false)
+  const [varForm, setVarForm] = useState({ nombre: '', tipo: 'captaciones', meta_valor: '', producto_keyword: '' })
   const periodo = new Date().toISOString().slice(0, 7)
 
   useEffect(() => {
@@ -25,9 +28,11 @@ export default function Metricas() {
       supabase.from('metas').select('*').eq('periodo', periodo).eq('tipo', 'mensual').maybeSingle(),
       supabase.from('visitas').select('cliente_id, monto_pedido, resultado, clientes(nombre_negocio)')
         .eq('resultado', 'visita_efectiva').gt('monto_pedido', 0).gte('fecha', hace30),
-      supabase.from('visitas').select('resultado, monto_pedido').gte('fecha', inicioMes),
+      supabase.from('visitas').select('resultado, monto_pedido, cliente_id, productos_pedidos').gte('fecha', inicioMes),
       supabase.from('cobros').select('monto').eq('estado', 'pagado').gte('fecha_pago', inicioMes),
-    ]).then(([vs, hist, m, topVs, mesVs, cobranzaVs]) => {
+      supabase.from('metas_variables').select('*').eq('periodo', periodo),
+      supabase.from('clientes').select('id', { count: 'exact', head: true }).gte('created_at', inicioMes),
+    ]).then(([vs, hist, m, topVs, mesVs, cobranzaVs, metasVarRes, captRes]) => {
       const v = vs.data || []
       const conPedido = v.filter((x: any) => x.resultado === 'visita_efectiva' && (x.monto_pedido || 0) > 0)
       setSemana({
@@ -63,6 +68,27 @@ export default function Metricas() {
         cobranza: cobranzaTotal,
         visitas_efectivas: mv.filter((x: any) => x.resultado === 'visita_efectiva' && (x.monto_pedido || 0) > 0).length,
       })
+
+      const captaciones = captRes.count || 0
+      const efectivosMes = mv.filter((x: any) => x.resultado === 'visita_efectiva' && (x.monto_pedido || 0) > 0)
+      const clientesEfectivos = new Set(efectivosMes.map((x: any) => x.cliente_id)).size
+      const calculadas = (metasVarRes.data || []).map((mv2: any) => {
+        if (mv2.tipo === 'captaciones') {
+          return { ...mv2, actual: captaciones, base: null }
+        }
+        if (mv2.tipo === 'producto_porcentaje') {
+          const kw = (mv2.producto_keyword || '').toLowerCase()
+          const conProd = new Set(
+            efectivosMes
+              .filter((x: any) => (x.productos_pedidos || []).some((p: any) => (p.nombre || '').toLowerCase().includes(kw)))
+              .map((x: any) => x.cliente_id)
+          ).size
+          const pctActual = clientesEfectivos > 0 ? Math.round(conProd / clientesEfectivos * 100) : 0
+          return { ...mv2, actual: pctActual, conProducto: conProd, base: clientesEfectivos }
+        }
+        return { ...mv2, actual: 0, base: null }
+      })
+      setMetasVar(calculadas)
     })
   }, [])
 
@@ -72,6 +98,23 @@ export default function Metricas() {
     else await supabase.from('metas').insert(d)
     setMeta(d)
     setEditMeta(false)
+  }
+
+  const guardarMetaVar = async () => {
+    if (!varForm.nombre || !varForm.meta_valor) return
+    await supabase.from('metas_variables').insert({
+      periodo, nombre: varForm.nombre, tipo: varForm.tipo,
+      meta_valor: +varForm.meta_valor,
+      producto_keyword: varForm.tipo === 'producto_porcentaje' ? varForm.producto_keyword : null,
+    })
+    setAddingVar(false)
+    setVarForm({ nombre: '', tipo: 'captaciones', meta_valor: '', producto_keyword: '' })
+    window.location.reload()
+  }
+
+  const eliminarMetaVar = async (id: number) => {
+    await supabase.from('metas_variables').delete().eq('id', id)
+    setMetasVar(prev => prev.filter((m: any) => m.id !== id))
   }
 
   const mesActual = new Date().toISOString().slice(0, 7)
@@ -175,6 +218,70 @@ export default function Metricas() {
         ) : (
           <p className="text-slate-400 text-sm">Configura una meta mensual para ver el progreso.</p>
         )}
+      </div>
+
+      {/* Metas variables del supervisor */}
+      <div className="bg-slate-900 rounded-xl p-4 border border-slate-800">
+        <div className="flex items-center gap-2 mb-3">
+          <h2 className="font-semibold">Metas del supervisor ({mesActual})</h2>
+          <button onClick={() => setAddingVar(v => !v)}
+            className="ml-auto text-xs text-slate-400 hover:text-white bg-slate-800 px-2 py-1 rounded">
+            {addingVar ? 'Cancelar' : '+ Agregar'}
+          </button>
+        </div>
+
+        {addingVar && (
+          <div className="flex gap-2 mb-3 flex-wrap">
+            <input type="text" placeholder="Nombre de la meta" value={varForm.nombre}
+              onChange={e => setVarForm({ ...varForm, nombre: e.target.value })}
+              className="flex-1 min-w-[140px] bg-slate-800 border border-slate-700 rounded px-3 py-1.5 text-sm" />
+            <select value={varForm.tipo} onChange={e => setVarForm({ ...varForm, tipo: e.target.value })}
+              className="bg-slate-800 border border-slate-700 rounded px-3 py-1.5 text-sm">
+              <option value="captaciones">Captaciones</option>
+              <option value="producto_porcentaje">Producto (%)</option>
+            </select>
+            <input type="number" placeholder="Meta" value={varForm.meta_valor}
+              onChange={e => setVarForm({ ...varForm, meta_valor: e.target.value })}
+              className="w-20 bg-slate-800 border border-slate-700 rounded px-3 py-1.5 text-sm" />
+            {varForm.tipo === 'producto_porcentaje' && (
+              <input type="text" placeholder="Keyword producto (ej: ketchup 200)" value={varForm.producto_keyword}
+                onChange={e => setVarForm({ ...varForm, producto_keyword: e.target.value })}
+                className="flex-1 min-w-[180px] bg-slate-800 border border-slate-700 rounded px-3 py-1.5 text-sm" />
+            )}
+            <button onClick={guardarMetaVar} className="bg-violet-600 text-white px-3 py-1.5 rounded text-sm">OK</button>
+          </div>
+        )}
+
+        {metasVar.length === 0 && !addingVar
+          ? <p className="text-slate-400 text-sm">No hay metas del supervisor para este mes.</p>
+          : <div className="space-y-3">
+              {metasVar.map((m: any) => {
+                const esPct = m.tipo === 'producto_porcentaje'
+                const pctBarra = esPct
+                  ? Math.min(m.actual / m.meta_valor * 100, 100)
+                  : Math.min(m.actual / m.meta_valor * 100, 100)
+                return (
+                  <div key={m.id}>
+                    <div className="flex justify-between text-sm mb-1 gap-2">
+                      <span className="flex items-center gap-1.5">
+                        {m.nombre}
+                        <button onClick={() => eliminarMetaVar(m.id)} className="text-slate-600 hover:text-red-400 text-xs leading-none">✕</button>
+                      </span>
+                      <span className="text-violet-400 text-xs shrink-0">
+                        {esPct
+                          ? `${m.actual}% (${m.conProducto}/${m.base} cl.) / meta ${m.meta_valor}%`
+                          : `${m.actual} / ${m.meta_valor}`}
+                      </span>
+                    </div>
+                    <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
+                      <div className="h-full bg-violet-500 rounded-full transition-all"
+                        style={{ width: `${pctBarra}%` }} />
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+        }
       </div>
 
       {/* Historial */}
