@@ -269,7 +269,7 @@ export default function Metricas() {
                       </span>
                       <span className="text-violet-400 text-xs shrink-0">
                         {esPct
-                          ? `${m.actual}% (${m.conProducto}/${m.base} cl.) / meta ${m.meta_valor}%`
+                          ? `${m.conProducto} / ${Math.round(m.base * m.meta_valor / 100)} cl. (meta ${m.meta_valor}% de ${m.base})`
                           : `${m.actual} / ${m.meta_valor}`}
                       </span>
                     </div>
