@@ -228,9 +228,9 @@ export default function Cobros() {
             return (
               <div key={c.id} onClick={() => abrirDetalle(c)}
                 className={`border rounded-xl p-4 cursor-pointer transition-colors ${
-                  c.estado === 'pagado' ? 'bg-green-950/30 border-green-900/50 hover:border-green-800' :
-                  c.estado === 'parcial' ? 'bg-yellow-950/30 border-yellow-900/50 hover:border-yellow-800' :
-                  c.estado === 'cancelado' ? 'bg-red-950/30 border-red-900/50 hover:border-red-800' :
+                  c.estado === 'pagado' ? 'bg-green-900/40 border-green-600/60 hover:border-green-500' :
+                  c.estado === 'parcial' ? 'bg-yellow-900/40 border-yellow-600/60 hover:border-yellow-500' :
+                  c.estado === 'cancelado' ? 'bg-red-900/40 border-red-600/60 hover:border-red-500' :
                   'bg-slate-900 border-slate-800 hover:border-slate-700'
                 }`}>
                 <div className="flex items-start justify-between">
