@@ -65,7 +65,7 @@ export default function FichaCliente() {
     Promise.all([
       supabase.from('clientes').select('*').eq('id', id).single(),
       supabase.from('visitas').select('*').eq('cliente_id', id).order('fecha', { ascending: false }).limit(20),
-      supabase.from('productos').select('nombre,categoria').eq('activo', true).limit(500),
+      supabase.from('productos').select('id,nombre,categoria').eq('activo', true).limit(500),
     ]).then(([c, v, p]) => {
       setCliente(c.data)
       setVisitas(v.data || [])
