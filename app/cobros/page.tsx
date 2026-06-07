@@ -227,7 +227,12 @@ export default function Cobros() {
             const dias = Math.ceil((new Date(c.fecha_vencimiento).getTime() - Date.now()) / 864e5)
             return (
               <div key={c.id} onClick={() => abrirDetalle(c)}
-                className={`border rounded-xl p-4 cursor-pointer transition-colors ${c.estado === 'cancelado' ? 'bg-red-950/30 border-red-900/50 hover:border-red-800' : 'bg-slate-900 border-slate-800 hover:border-slate-700'}`}>
+                className={`border rounded-xl p-4 cursor-pointer transition-colors ${
+                  c.estado === 'pagado' ? 'bg-green-950/30 border-green-900/50 hover:border-green-800' :
+                  c.estado === 'parcial' ? 'bg-yellow-950/30 border-yellow-900/50 hover:border-yellow-800' :
+                  c.estado === 'cancelado' ? 'bg-red-950/30 border-red-900/50 hover:border-red-800' :
+                  'bg-slate-900 border-slate-800 hover:border-slate-700'
+                }`}>
                 <div className="flex items-start justify-between">
                   <div>
                     <p className="font-medium">{cl?.nombre_negocio}</p>
