@@ -488,6 +488,10 @@ export default function Clientes() {
                   </div>
                 )}
                 <div className="flex flex-wrap gap-2">
+                  <button onClick={() => router.push(`/clientes/${c.id}`)}
+                    className="bg-violet-900/60 hover:bg-violet-800/60 text-violet-300 border border-violet-700/50 px-3 py-1.5 rounded-lg text-sm font-medium">
+                    🧠 Ver ficha
+                  </button>
                   <button onClick={() => router.push(`/visita?cliente_id=${c.id}`)}
                     className="bg-violet-600 hover:bg-violet-700 text-white px-3 py-1.5 rounded-lg text-sm font-medium">
                     📋 Registrar visita
