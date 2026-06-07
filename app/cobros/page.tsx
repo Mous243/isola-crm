@@ -227,11 +227,11 @@ export default function Cobros() {
             const dias = Math.ceil((new Date(c.fecha_vencimiento).getTime() - Date.now()) / 864e5)
             return (
               <div key={c.id} onClick={() => abrirDetalle(c)}
-                className={`border rounded-xl p-4 cursor-pointer transition-colors ${
-                  c.estado === 'pagado' ? 'bg-green-900/40 border-green-600/60 hover:border-green-500' :
-                  c.estado === 'parcial' ? 'bg-yellow-900/40 border-yellow-600/60 hover:border-yellow-500' :
-                  c.estado === 'cancelado' ? 'bg-red-900/40 border-red-600/60 hover:border-red-500' :
-                  'bg-slate-900 border-slate-800 hover:border-slate-700'
+                className={`border-y border-r rounded-xl p-4 cursor-pointer transition-colors border-l-4 ${
+                  c.estado === 'pagado' ? 'bg-green-950/60 border-slate-800 border-l-green-400' :
+                  c.estado === 'parcial' ? 'bg-yellow-950/60 border-slate-800 border-l-yellow-400' :
+                  c.estado === 'cancelado' ? 'bg-red-950/60 border-slate-800 border-l-red-500' :
+                  'bg-slate-900 border-slate-800 border-l-slate-700 hover:border-l-slate-500'
                 }`}>
                 <div className="flex items-start justify-between">
                   <div>
