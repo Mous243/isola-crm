@@ -30,6 +30,9 @@ export default function Cobros() {
   const [entregaCobro, setEntregaCobro] = useState<Cobro | null>(null)
   const [fechaEntregaInput, setFechaEntregaInput] = useState(hoy())
   const [guardandoEntrega, setGuardandoEntrega] = useState(false)
+  const [pagoModal, setPagoModal] = useState<Cobro | null>(null)
+  const [fechaPagoInput, setFechaPagoInput] = useState(hoy())
+  const [guardandoPago, setGuardandoPago] = useState(false)
 
   const cargar = async () => {
     const q = supabase.from('cobros').select('*, clientes(nombre_negocio, propietario, telefono, codigo_cliente)').order('fecha_vencimiento')
@@ -50,6 +53,15 @@ export default function Cobros() {
   const marcar = async (id: number, estado: string) => {
     await supabase.from('cobros').update({ estado }).eq('id', id)
     setCobros(prev => prev.map(c => c.id === id ? { ...c, estado } : c))
+  }
+
+  const confirmarPago = async () => {
+    if (!pagoModal) return
+    setGuardandoPago(true)
+    await supabase.from('cobros').update({ estado: 'pagado', fecha_pago: fechaPagoInput }).eq('id', pagoModal.id)
+    setCobros(prev => prev.map(c => c.id === pagoModal.id ? { ...c, estado: 'pagado', fecha_pago: fechaPagoInput } as any : c))
+    setGuardandoPago(false)
+    setPagoModal(null)
   }
 
   const confirmarEntrega = async () => {
@@ -235,7 +247,7 @@ export default function Cobros() {
                   ) : (
                     <>
                       {c.estado !== 'pagado' && (
-                        <button onClick={() => marcar(c.id, 'pagado')}
+                        <button onClick={() => { setPagoModal(c); setFechaPagoInput(hoy()) }}
                           className="bg-green-800/50 hover:bg-green-700/50 text-green-400 px-3 py-1 rounded-lg text-xs">
                           ✅ Pagado
                         </button>
@@ -362,6 +374,27 @@ export default function Cobros() {
                   ✏️ Editar
                 </button>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {pagoModal && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => setPagoModal(null)}>
+          <div className="bg-slate-900 rounded-xl border border-slate-800 p-4 w-full max-w-sm space-y-3" onClick={e => e.stopPropagation()}>
+            <h2 className="font-semibold">✅ Confirmar pago — {(pagoModal.clientes as any)?.nombre_negocio}</h2>
+            <p className="text-sm text-slate-400">{pagoModal.moneda} {pagoModal.monto.toFixed(2)}</p>
+            <label className="block">
+              <span className="text-xs text-slate-400">Fecha real del pago</span>
+              <input type="date" value={fechaPagoInput} onChange={e => setFechaPagoInput(e.target.value)}
+                className="w-full mt-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm" />
+            </label>
+            <div className="flex gap-2">
+              <button onClick={() => setPagoModal(null)} className="flex-1 bg-slate-800 hover:bg-slate-700 py-2 rounded-lg text-sm">Cancelar</button>
+              <button onClick={confirmarPago} disabled={guardandoPago}
+                className="flex-1 bg-green-700 hover:bg-green-600 disabled:opacity-50 text-white py-2 rounded-lg text-sm font-medium">
+                {guardandoPago ? 'Guardando...' : 'Confirmar pago'}
+              </button>
             </div>
           </div>
         </div>
