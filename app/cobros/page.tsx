@@ -242,47 +242,44 @@ export default function Cobros() {
                 </div>
                 {c.descripcion && <p className="text-xs text-slate-500 mt-1">{c.descripcion}</p>}
                 <div className="flex gap-2 mt-3 flex-wrap items-center" onClick={e => e.stopPropagation()}>
-                  {c.estado === 'cancelado' ? (
-                    <span className="text-red-400/70 text-xs italic">Cancelado — sin acciones</span>
+                  <button
+                    onClick={() => { if (c.estado !== 'pagado') { setPagoModal(c); setFechaPagoInput(hoy()) } }}
+                    className={c.estado === 'pagado'
+                      ? 'bg-green-600 text-white px-3 py-1 rounded-lg text-xs font-medium'
+                      : 'bg-green-800/50 hover:bg-green-700/50 text-green-400 px-3 py-1 rounded-lg text-xs'}>
+                    ✅ Pagado
+                  </button>
+                  <button
+                    onClick={() => { if (c.estado !== 'pagado' && c.estado !== 'parcial') marcar(c.id, 'parcial') }}
+                    className={c.estado === 'parcial'
+                      ? 'bg-yellow-500 text-white px-3 py-1 rounded-lg text-xs font-medium'
+                      : 'bg-yellow-800/50 hover:bg-yellow-700/50 text-yellow-400 px-3 py-1 rounded-lg text-xs'}>
+                    ⚡ Parcial
+                  </button>
+                  <button
+                    onClick={() => { if (c.estado !== 'pagado' && c.estado !== 'cancelado') marcar(c.id, 'cancelado') }}
+                    className={c.estado === 'cancelado'
+                      ? 'bg-red-700 text-white px-3 py-1 rounded-lg text-xs font-medium'
+                      : 'bg-red-900/30 hover:bg-red-900/50 text-red-400 px-3 py-1 rounded-lg text-xs'}>
+                    ❌ Cancelar
+                  </button>
+                  {c.fecha_entrega ? (
+                    <span className="bg-blue-900/30 text-blue-400 px-3 py-1 rounded-lg text-xs">
+                      📦 Entregado {c.fecha_entrega}
+                    </span>
                   ) : (
-                    <>
-                      {c.estado !== 'pagado' && (
-                        <button onClick={() => { setPagoModal(c); setFechaPagoInput(hoy()) }}
-                          className="bg-green-800/50 hover:bg-green-700/50 text-green-400 px-3 py-1 rounded-lg text-xs">
-                          ✅ Pagado
-                        </button>
-                      )}
-                      {c.estado === 'pendiente' && (
-                        <button onClick={() => marcar(c.id, 'parcial')}
-                          className="bg-yellow-800/50 hover:bg-yellow-700/50 text-yellow-400 px-3 py-1 rounded-lg text-xs">
-                          ⚡ Parcial
-                        </button>
-                      )}
-                      {c.estado !== 'pagado' && (
-                        <button onClick={() => marcar(c.id, 'cancelado')}
-                          className="bg-red-900/30 hover:bg-red-900/50 text-red-400 px-3 py-1 rounded-lg text-xs">
-                          ❌ Cancelar
-                        </button>
-                      )}
-                      {c.fecha_entrega ? (
-                        <span className="bg-blue-900/30 text-blue-400 px-3 py-1 rounded-lg text-xs">
-                          📦 Entregado {c.fecha_entrega}
-                        </span>
-                      ) : (
-                        <button onClick={() => { setEntregaCobro(c); setFechaEntregaInput(hoy()) }}
-                          className="bg-blue-900/30 hover:bg-blue-900/50 text-blue-400 px-3 py-1 rounded-lg text-xs">
-                          📦 Entregado
-                        </button>
-                      )}
-                      {cl?.telefono && (
-                        <a href={waMsg(c)} target="_blank" rel="noreferrer"
-                          className={dias <= 3
-                            ? 'bg-orange-600/80 hover:bg-orange-600 text-white px-3 py-1 rounded-lg text-xs font-medium animate-pulse'
-                            : 'bg-green-800/50 hover:bg-green-700/50 text-green-400 px-3 py-1 rounded-lg text-xs'}>
-                          {dias <= 3 ? '📱 Recordar ahora' : '📱 WhatsApp'}
-                        </a>
-                      )}
-                    </>
+                    <button onClick={() => { setEntregaCobro(c); setFechaEntregaInput(hoy()) }}
+                      className="bg-blue-900/30 hover:bg-blue-900/50 text-blue-400 px-3 py-1 rounded-lg text-xs">
+                      📦 Entregado
+                    </button>
+                  )}
+                  {cl?.telefono && (
+                    <a href={waMsg(c)} target="_blank" rel="noreferrer"
+                      className={dias <= 3
+                        ? 'bg-orange-600/80 hover:bg-orange-600 text-white px-3 py-1 rounded-lg text-xs font-medium animate-pulse'
+                        : 'bg-green-800/50 hover:bg-green-700/50 text-green-400 px-3 py-1 rounded-lg text-xs'}>
+                      {dias <= 3 ? '📱 Recordar ahora' : '📱 WhatsApp'}
+                    </a>
                   )}
                   <button onClick={() => eliminar(c.id)}
                     className="bg-red-900/30 hover:bg-red-900/50 text-red-400 px-3 py-1 rounded-lg text-xs ml-auto">
