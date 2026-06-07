@@ -31,7 +31,7 @@ export default function Metricas() {
       supabase.from('visitas').select('resultado, monto_pedido, cliente_id, productos_pedidos').gte('fecha', inicioMes),
       supabase.from('cobros').select('monto').eq('estado', 'pagado').gte('fecha_pago', inicioMes),
       supabase.from('metas_variables').select('*').eq('periodo', periodo),
-      supabase.from('clientes').select('id', { count: 'exact', head: true }).gte('created_at', inicioMes),
+      supabase.from('clientes').select('id', { count: 'exact', head: true }).gte('fecha_captacion', inicioMes),
     ]).then(([vs, hist, m, topVs, mesVs, cobranzaVs, metasVarRes, captRes]) => {
       const v = vs.data || []
       const conPedido = v.filter((x: any) => x.resultado === 'visita_efectiva' && (x.monto_pedido || 0) > 0)
