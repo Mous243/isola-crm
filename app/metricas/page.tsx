@@ -8,8 +8,8 @@ export default function Metricas() {
   const [historial, setHistorial] = useState<any[]>([])
   const [top, setTop] = useState<any[]>([])
   const [meta, setMeta] = useState<any>(null)
-  const [mes, setMes] = useState<{ monto: number; visitas: number; cobranza: number }>({ monto: 0, visitas: 0, cobranza: 0 })
-  const [metaForm, setMetaForm] = useState({ monto: '', visitas: '', cobranza: '' })
+  const [mes, setMes] = useState<{ monto: number; visitas: number; cobranza: number; visitas_efectivas: number }>({ monto: 0, visitas: 0, cobranza: 0, visitas_efectivas: 0 })
+  const [metaForm, setMetaForm] = useState({ monto: '', visitas: '', cobranza: '', visitas_efectivas: '' })
   const [editMeta, setEditMeta] = useState(false)
   const periodo = new Date().toISOString().slice(0, 7)
 
@@ -61,12 +61,13 @@ export default function Metricas() {
         monto: mv.reduce((a: number, x: any) => a + (x.monto_pedido || 0), 0),
         visitas: mv.length,
         cobranza: cobranzaTotal,
+        visitas_efectivas: mv.filter((x: any) => x.resultado === 'visita_efectiva' && (x.monto_pedido || 0) > 0).length,
       })
     })
   }, [])
 
   const guardarMeta = async () => {
-    const d = { periodo, tipo: 'mensual', meta_monto: +metaForm.monto, meta_visitas: +metaForm.visitas, meta_cobranza: +metaForm.cobranza }
+    const d = { periodo, tipo: 'mensual', meta_monto: +metaForm.monto, meta_visitas: +metaForm.visitas, meta_cobranza: +metaForm.cobranza, meta_visitas_efectivas: +metaForm.visitas_efectivas }
     if (meta) await supabase.from('metas').update(d).eq('id', meta.id)
     else await supabase.from('metas').insert(d)
     setMeta(d)
@@ -104,7 +105,7 @@ export default function Metricas() {
       <div className="bg-slate-900 rounded-xl p-4 border border-slate-800">
         <div className="flex items-center gap-2 mb-3">
           <h2 className="font-semibold">Meta del mes ({mesActual})</h2>
-          <button onClick={() => { setEditMeta(!editMeta); setMetaForm({ monto: String(meta?.meta_monto || ''), visitas: String(meta?.meta_visitas || ''), cobranza: String(meta?.meta_cobranza || '') }) }}
+          <button onClick={() => { setEditMeta(!editMeta); setMetaForm({ monto: String(meta?.meta_monto || ''), visitas: String(meta?.meta_visitas || ''), cobranza: String(meta?.meta_cobranza || ''), visitas_efectivas: String(meta?.meta_visitas_efectivas || '') }) }}
             className="ml-auto text-xs text-slate-400 hover:text-white bg-slate-800 px-2 py-1 rounded">
             {editMeta ? 'Cancelar' : 'Editar'}
           </button>
@@ -116,6 +117,8 @@ export default function Metricas() {
             <input type="number" placeholder="Meta visitas" value={metaForm.visitas} onChange={e => setMetaForm({ ...metaForm, visitas: e.target.value })}
               className="flex-1 min-w-[100px] bg-slate-800 border border-slate-700 rounded px-3 py-1.5 text-sm" />
             <input type="number" placeholder="Meta cobranza USD" value={metaForm.cobranza} onChange={e => setMetaForm({ ...metaForm, cobranza: e.target.value })}
+              className="flex-1 min-w-[100px] bg-slate-800 border border-slate-700 rounded px-3 py-1.5 text-sm" />
+            <input type="number" placeholder="Meta v. efectivas" value={metaForm.visitas_efectivas} onChange={e => setMetaForm({ ...metaForm, visitas_efectivas: e.target.value })}
               className="flex-1 min-w-[100px] bg-slate-800 border border-slate-700 rounded px-3 py-1.5 text-sm" />
             <button onClick={guardarMeta} className="bg-violet-600 text-white px-3 py-1.5 rounded text-sm">OK</button>
           </div>
@@ -141,6 +144,18 @@ export default function Metricas() {
                 <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
                   <div className="h-full bg-blue-500 rounded-full transition-all"
                     style={{ width: `${Math.min(mes.visitas / meta.meta_visitas * 100, 100)}%` }} />
+                </div>
+              </div>
+            )}
+            {meta.meta_visitas_efectivas > 0 && (
+              <div>
+                <div className="flex justify-between text-sm mb-1">
+                  <span>Visitas efectivas del mes</span>
+                  <span className="text-orange-400">{mes.visitas_efectivas} / {meta.meta_visitas_efectivas}</span>
+                </div>
+                <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
+                  <div className="h-full bg-orange-500 rounded-full transition-all"
+                    style={{ width: `${Math.min(mes.visitas_efectivas / meta.meta_visitas_efectivas * 100, 100)}%` }} />
                 </div>
               </div>
             )}
