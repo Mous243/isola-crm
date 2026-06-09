@@ -14,8 +14,8 @@ function waRecordatorio(c: any) {
   return `https://wa.me/${(cl?.telefono || '').replace('+', '')}?text=${encodeURIComponent(msg)}`
 }
 
-function AlertaBanner({ stats, cobrosUrgentes, sinVisitar }: {
-  stats: Stats; cobrosUrgentes: any[]; sinVisitar: any[]
+function AlertaBanner({ stats, cobrosUrgentes, sinVisitar, loaded }: {
+  stats: Stats; cobrosUrgentes: any[]; sinVisitar: any[]; loaded: boolean
 }) {
   const h = parseInt(new Date().toLocaleString('es-VE', { timeZone: 'America/Caracas', hour: 'numeric', hour12: false }))
   const [visible, setVisible] = useState(true)
@@ -93,7 +93,7 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
-      <AlertaBanner stats={stats} cobrosUrgentes={cobrosUrgentes} sinVisitar={sinVisitar} />
+      <AlertaBanner stats={stats} cobrosUrgentes={cobrosUrgentes} sinVisitar={sinVisitar} loaded={loaded} />
       <div>
         <h1 className="text-2xl font-bold text-violet-400">Dashboard</h1>
         <p className="text-slate-400 text-sm">{new Date().toLocaleDateString('es-VE', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
