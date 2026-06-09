@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { supabase, type Cliente, type Producto, type Visita } from '@/lib/supabase'
+import ClienteFichaModal from '@/components/ClienteFichaModal'
 
 type LineaPedido = { nombre: string; codigo?: string; cajas: number; precio_caja: number; subtotal: number; imagen_url?: string }
 
@@ -83,6 +84,7 @@ export default function RegistrarVisita() {
   const [editCatSel, setEditCatSel] = useState('Todas')
   const [editBusquedaProd, setEditBusquedaProd] = useState('')
   const [savingEdit, setSavingEdit] = useState(false)
+  const [mostrarFicha, setMostrarFicha] = useState(false)
 
   const diaHoy = DIAS_ES[new Date().getDay()]
 
@@ -202,6 +204,7 @@ export default function RegistrarVisita() {
     setForm(f => ({ ...f, cliente_id: String(c.id) }))
     setBusqueda(c.nombre_negocio)
     setMostrarLista(false)
+    setMostrarFicha(false)
   }
 
   const prodsFiltrados = productos.filter(p => {
@@ -369,6 +372,9 @@ export default function RegistrarVisita() {
 
   return (
     <div className="space-y-4">
+      {mostrarFicha && clienteSel && (
+        <ClienteFichaModal clienteId={clienteSel.id!} onClose={() => setMostrarFicha(false)} />
+      )}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-violet-400">Visita</h1>
         <span className="text-xs bg-violet-900/40 text-violet-300 px-3 py-1 rounded-full">
@@ -648,14 +654,20 @@ export default function RegistrarVisita() {
                   <div className="flex items-center gap-2 flex-wrap">
                     {clienteSel.codigo_cliente && <span className="text-violet-400 font-mono text-xs">{clienteSel.codigo_cliente}</span>}
                     {clienteSel.zona && <span className="text-slate-400 text-xs">· {clienteSel.zona}</span>}
-                    {clienteSel.telefono && (
-                      <a href={`https://wa.me/${(clienteSel.telefono || '').replace('+','')}`} target="_blank" rel="noreferrer"
-                        className="text-green-400 text-xs ml-auto">📱 WhatsApp</a>
-                    )}
+                    <div className="ml-auto flex items-center gap-2">
+                      {clienteSel.telefono && (
+                        <a href={`https://wa.me/${(clienteSel.telefono || '').replace('+','')}`} target="_blank" rel="noreferrer"
+                          className="text-green-400 text-xs">📱 WhatsApp</a>
+                      )}
+                    </div>
                   </div>
                   <div className="flex gap-4 text-xs">
                     <span className="text-slate-400">Últ. visita: <span className="text-white">{clienteSel.fecha_ultima_visita || 'Nunca'}</span></span>
                   </div>
+                  <button onClick={() => setMostrarFicha(true)}
+                    className="w-full mt-1 bg-violet-900/40 hover:bg-violet-900/60 border border-violet-800/50 text-violet-300 text-sm font-medium py-2 rounded-lg">
+                    🧠 Ver ficha del cliente
+                  </button>
                   {cobrosCliente.length > 0 && (
                     <div className="mt-1 space-y-1.5 border-t border-slate-700/50 pt-2">
                       <p className="text-red-400 font-medium text-xs">⚠️ Cobros pendientes con este cliente:</p>
