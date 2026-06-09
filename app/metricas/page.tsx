@@ -113,6 +113,7 @@ export default function Metricas() {
   }
 
   const eliminarMetaVar = async (id: number) => {
+    if (!confirm('¿Eliminar esta meta del supervisor?')) return
     await supabase.from('metas_variables').delete().eq('id', id)
     setMetasVar(prev => prev.filter((m: any) => m.id !== id))
   }
