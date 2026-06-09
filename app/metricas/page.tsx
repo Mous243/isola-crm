@@ -33,7 +33,8 @@ export default function Metricas() {
       supabase.from('cobros').select('monto').eq('estado', 'pagado').gte('fecha_pago', inicioMes),
       supabase.from('metas_variables').select('*').eq('periodo', periodo),
       supabase.from('clientes').select('id', { count: 'exact', head: true }).gte('fecha_captacion', inicioMes),
-    ]).then(([vs, hist, m, topVs, mesVs, cobranzaVs, metasVarRes, captRes]) => {
+      supabase.from('clientes').select('id', { count: 'exact', head: true }).in('status', ['activo', 'nuevo', 'inactivo']),
+    ]).then(([vs, hist, m, topVs, mesVs, cobranzaVs, metasVarRes, captRes, carteraRes]) => {
       const v = vs.data || []
       const conPedido = v.filter((x: any) => x.resultado === 'visita_efectiva' && (x.monto_pedido || 0) > 0)
       setSemana({
@@ -71,6 +72,7 @@ export default function Metricas() {
       })
 
       const captaciones = captRes.count || 0
+      const totalCartera = carteraRes.count || 0
       const efectivosMes = mv.filter((x: any) => x.resultado === 'visita_efectiva' && (x.monto_pedido || 0) > 0)
       const clientesEfectivos = new Set(efectivosMes.map((x: any) => x.cliente_id)).size
       const calculadas = (metasVarRes.data || []).map((mv2: any) => {
@@ -91,6 +93,21 @@ export default function Metricas() {
           const clientesLista = [...mapaClientes.values()] as string[]
           const pctActual = clientesEfectivos > 0 ? Math.round(conProd / clientesEfectivos * 100) : 0
           return { ...mv2, actual: pctActual, conProducto: conProd, base: clientesEfectivos, clientesLista }
+        }
+        if (mv2.tipo === 'producto_cartera') {
+          const kw = (mv2.producto_keyword || '').toLowerCase()
+          const excludes = (mv2.exclude_keyword || '').toLowerCase().split(',').map((s: string) => s.trim()).filter(Boolean)
+          const visConProd = efectivosMes.filter((x: any) =>
+            (x.productos_pedidos || []).some((p: any) => {
+              const nombre = (p.nombre || '').toLowerCase()
+              return nombre.includes(kw) && excludes.every((ex: string) => !nombre.includes(ex))
+            })
+          )
+          const mapaClientes = new Map(visConProd.map((x: any) => [x.cliente_id, (x.clientes as any)?.nombre_negocio || `#${x.cliente_id}`]))
+          const conProd = mapaClientes.size
+          const clientesLista = [...mapaClientes.values()] as string[]
+          const pctActual = totalCartera > 0 ? Math.round(conProd / totalCartera * 100) : 0
+          return { ...mv2, actual: pctActual, conProducto: conProd, base: totalCartera, clientesLista }
         }
         return { ...mv2, actual: 0, base: null }
       })
@@ -264,8 +281,9 @@ export default function Metricas() {
           : <div className="space-y-3">
               {metasVar.map((m: any) => {
                 const esPct = m.tipo === 'producto_porcentaje'
-                const pctBarra = esPct
-                  ? Math.min(m.actual / m.meta_valor * 100, 100)
+                const esCartera = m.tipo === 'producto_cartera'
+                const pctBarra = (esPct || esCartera)
+                  ? Math.min(m.actual, 100)
                   : Math.min(m.actual / m.meta_valor * 100, 100)
                 return (
                   <div key={m.id}>
@@ -277,6 +295,8 @@ export default function Metricas() {
                       <span className="text-violet-400 text-xs shrink-0">
                         {esPct
                           ? `${m.conProducto} / ${Math.round(m.base * m.meta_valor / 100)} cl. (meta ${m.meta_valor}% de ${m.base})`
+                          : esCartera
+                          ? `${m.conProducto} / ${m.base} cl. (${m.actual}%)`
                           : `${m.actual} / ${m.meta_valor}`}
                       </span>
                     </div>
@@ -284,7 +304,7 @@ export default function Metricas() {
                       <div className="h-full bg-violet-500 rounded-full transition-all"
                         style={{ width: `${pctBarra}%` }} />
                     </div>
-                    {esPct && m.clientesLista?.length > 0 && (
+                    {(esPct || esCartera) && m.clientesLista?.length > 0 && (
                       <div className="mt-1">
                         <button onClick={() => setExpandedMeta(expandedMeta === m.id ? null : m.id)}
                           className="text-xs text-slate-500 hover:text-violet-400 transition-colors">
