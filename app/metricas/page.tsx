@@ -24,7 +24,7 @@ export default function Metricas() {
     const inicioMes = `${periodo}-01`
 
     Promise.all([
-      supabase.from('visitas').select('resultado, monto_pedido, cliente_id').gte('fecha', hace7),
+      supabase.from('visitas').select('resultado, monto_pedido, cliente_id').gte('fecha', inicioMes),
       supabase.from('visitas').select('fecha, resultado, monto_pedido').gte('fecha', hace30).order('fecha'),
       supabase.from('metas').select('*').eq('periodo', periodo).eq('tipo', 'mensual').maybeSingle(),
       supabase.from('visitas').select('cliente_id, monto_pedido, resultado, clientes(nombre_negocio)')
@@ -129,7 +129,7 @@ export default function Metricas() {
       {/* Semana */}
       {semana && (
         <div>
-          <h2 className="text-sm font-semibold text-slate-400 mb-2">Esta semana</h2>
+          <h2 className="text-sm font-semibold text-slate-400 mb-2">Este mes</h2>
           <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
             {[
               { label: 'Visitas', value: semana.total },
