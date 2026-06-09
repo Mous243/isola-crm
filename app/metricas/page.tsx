@@ -13,6 +13,7 @@ export default function Metricas() {
   const [editMeta, setEditMeta] = useState(false)
   const [metasVar, setMetasVar] = useState<any[]>([])
   const [addingVar, setAddingVar] = useState(false)
+  const [expandedMeta, setExpandedMeta] = useState<number | null>(null)
   const [varForm, setVarForm] = useState({ nombre: '', tipo: 'captaciones', meta_valor: '', producto_keyword: '' })
   const periodo = new Date().toISOString().slice(0, 7)
 
@@ -28,7 +29,7 @@ export default function Metricas() {
       supabase.from('metas').select('*').eq('periodo', periodo).eq('tipo', 'mensual').maybeSingle(),
       supabase.from('visitas').select('cliente_id, monto_pedido, resultado, clientes(nombre_negocio)')
         .eq('resultado', 'visita_efectiva').gt('monto_pedido', 0).gte('fecha', hace30),
-      supabase.from('visitas').select('resultado, monto_pedido, cliente_id, productos_pedidos').gte('fecha', inicioMes),
+      supabase.from('visitas').select('resultado, monto_pedido, cliente_id, productos_pedidos, clientes(nombre_negocio)').gte('fecha', inicioMes),
       supabase.from('cobros').select('monto').eq('estado', 'pagado').gte('fecha_pago', inicioMes),
       supabase.from('metas_variables').select('*').eq('periodo', periodo),
       supabase.from('clientes').select('id', { count: 'exact', head: true }).gte('fecha_captacion', inicioMes),
@@ -78,13 +79,14 @@ export default function Metricas() {
         }
         if (mv2.tipo === 'producto_porcentaje') {
           const kw = (mv2.producto_keyword || '').toLowerCase()
-          const conProd = new Set(
-            efectivosMes
-              .filter((x: any) => (x.productos_pedidos || []).some((p: any) => (p.nombre || '').toLowerCase().includes(kw)))
-              .map((x: any) => x.cliente_id)
-          ).size
+          const visConProd = efectivosMes.filter((x: any) =>
+            (x.productos_pedidos || []).some((p: any) => (p.nombre || '').toLowerCase().includes(kw))
+          )
+          const mapaClientes = new Map(visConProd.map((x: any) => [x.cliente_id, (x.clientes as any)?.nombre_negocio || `#${x.cliente_id}`]))
+          const conProd = mapaClientes.size
+          const clientesLista = [...mapaClientes.values()] as string[]
           const pctActual = clientesEfectivos > 0 ? Math.round(conProd / clientesEfectivos * 100) : 0
-          return { ...mv2, actual: pctActual, conProducto: conProd, base: clientesEfectivos }
+          return { ...mv2, actual: pctActual, conProducto: conProd, base: clientesEfectivos, clientesLista }
         }
         return { ...mv2, actual: 0, base: null }
       })
@@ -278,6 +280,23 @@ export default function Metricas() {
                       <div className="h-full bg-violet-500 rounded-full transition-all"
                         style={{ width: `${pctBarra}%` }} />
                     </div>
+                    {esPct && m.clientesLista?.length > 0 && (
+                      <div className="mt-1">
+                        <button onClick={() => setExpandedMeta(expandedMeta === m.id ? null : m.id)}
+                          className="text-xs text-slate-500 hover:text-violet-400 transition-colors">
+                          {expandedMeta === m.id ? '▲ ocultar clientes' : `▼ ver ${m.clientesLista.length} cliente${m.clientesLista.length !== 1 ? 's' : ''}`}
+                        </button>
+                        {expandedMeta === m.id && (
+                          <div className="mt-1.5 flex flex-wrap gap-1.5">
+                            {m.clientesLista.map((nombre: string, i: number) => (
+                              <span key={i} className="text-xs bg-violet-900/30 text-violet-300 border border-violet-800/50 rounded-full px-2.5 py-0.5">
+                                {nombre}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )
               })}
