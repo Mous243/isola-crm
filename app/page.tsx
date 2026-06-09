@@ -38,7 +38,7 @@ function AlertaBanner({ stats, cobrosUrgentes, sinVisitar }: {
       title: 'Cobros próximos',
       msg: `${cobrosUrgentes.length} cobro${cobrosUrgentes.length > 1 ? 's' : ''} vence${cobrosUrgentes.length > 1 ? 'n' : ''} en 3 días`,
     },
-    noche: {
+    noche: stats.total === 0 ? null : {
       icon: '🌙', color: 'border-blue-500/40 bg-blue-900/20',
       title: 'Resumen del día',
       msg: `${stats.con_pedido}/${stats.total} visitas con pedido · $${stats.monto.toFixed(0)} total`,
