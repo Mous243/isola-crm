@@ -278,7 +278,7 @@ export default function Cobros() {
                       📦 Entregado
                     </button>
                   )}
-                  {cl?.telefono && (
+                  {cl?.telefono && c.estado !== 'pagado' && (
                     <a href={waMsg(c)} target="_blank" rel="noreferrer"
                       className={dias <= 3
                         ? 'bg-orange-600/80 hover:bg-orange-600 text-white px-3 py-1 rounded-lg text-xs font-medium animate-pulse'
