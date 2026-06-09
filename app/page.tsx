@@ -19,7 +19,7 @@ function AlertaBanner({ stats, cobrosUrgentes, sinVisitar }: {
 }) {
   const h = parseInt(new Date().toLocaleString('es-VE', { timeZone: 'America/Caracas', hour: 'numeric', hour12: false }))
   const [visible, setVisible] = useState(true)
-  if (!visible) return null
+  if (!visible || !loaded) return null
 
   let tipo: 'manana' | 'tarde' | 'noche' | null = null
   if (h >= 6 && h < 9) tipo = 'manana'
@@ -64,6 +64,7 @@ export default function Dashboard() {
   const [cobrosUrgentes, setCobrosUrgentes] = useState<any[]>([])
   const [sinVisitar, setSinVisitar] = useState<any[]>([])
   const [visitasHoy, setVisitasHoy] = useState<any[]>([])
+  const [loaded, setLoaded] = useState(false)
 
   const hoy = new Date().toISOString().split('T')[0]
   const hace7 = new Date(Date.now() - 7 * 864e5).toISOString().split('T')[0]
@@ -86,6 +87,7 @@ export default function Dashboard() {
       })
       setCobrosUrgentes(c.data || [])
       setSinVisitar(s.data || [])
+      setLoaded(true)
     })
   }, [])
 
