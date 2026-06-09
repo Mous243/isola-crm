@@ -79,8 +79,12 @@ export default function Metricas() {
         }
         if (mv2.tipo === 'producto_porcentaje') {
           const kw = (mv2.producto_keyword || '').toLowerCase()
+          const excludes = (mv2.exclude_keyword || '').toLowerCase().split(',').map((s: string) => s.trim()).filter(Boolean)
           const visConProd = efectivosMes.filter((x: any) =>
-            (x.productos_pedidos || []).some((p: any) => (p.nombre || '').toLowerCase().includes(kw))
+            (x.productos_pedidos || []).some((p: any) => {
+              const nombre = (p.nombre || '').toLowerCase()
+              return nombre.includes(kw) && excludes.every((ex: string) => !nombre.includes(ex))
+            })
           )
           const mapaClientes = new Map(visConProd.map((x: any) => [x.cliente_id, (x.clientes as any)?.nombre_negocio || `#${x.cliente_id}`]))
           const conProd = mapaClientes.size
