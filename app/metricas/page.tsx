@@ -14,6 +14,7 @@ export default function Metricas() {
   const [metasVar, setMetasVar] = useState<any[]>([])
   const [noVisitados, setNoVisitados] = useState<string[]>([])
   const [showNoVisitados, setShowNoVisitados] = useState(false)
+  const [showTasaInfo, setShowTasaInfo] = useState(false)
   const [addingVar, setAddingVar] = useState(false)
   const [expandedMeta, setExpandedMeta] = useState<number | null>(null)
   const [varForm, setVarForm] = useState({ nombre: '', tipo: 'captaciones', meta_valor: '', producto_keyword: '' })
@@ -161,7 +162,6 @@ export default function Metricas() {
               { label: 'Visitas', value: semana.total },
               { label: 'Clientes', value: semana.clientes },
               { label: 'Con pedido', value: semana.con_pedido },
-              { label: 'Tasa cierre', value: `${semana.tasa}%` },
               { label: 'Monto USD', value: `$${semana.monto.toFixed(0)}` },
             ].map(m => (
               <div key={m.label} className="bg-slate-900 rounded-xl p-3 border border-slate-800 text-center">
@@ -169,6 +169,22 @@ export default function Metricas() {
                 <p className="text-xs text-slate-500">{m.label}</p>
               </div>
             ))}
+            <div className="bg-slate-900 rounded-xl p-3 border border-slate-800 text-center col-span-2 md:col-span-1">
+              <div className="flex items-center justify-center gap-1.5">
+                <p className={`text-xl font-bold ${semana.tasa >= 50 ? 'text-green-400' : semana.tasa >= 30 ? 'text-yellow-400' : 'text-red-400'}`}>
+                  {semana.tasa}%
+                </p>
+                <button onClick={() => setShowTasaInfo(v => !v)} className="text-slate-600 hover:text-slate-400 text-xs leading-none mt-0.5">ⓘ</button>
+              </div>
+              <p className="text-xs text-slate-500">Tasa cierre</p>
+              {showTasaInfo && (
+                <div className="mt-2 text-left space-y-1 border-t border-slate-800 pt-2">
+                  <p className={`text-xs ${semana.tasa < 30 ? 'text-red-400 font-semibold' : 'text-slate-500'}`}>{'< 30% — Revisar argumentos'}</p>
+                  <p className={`text-xs ${semana.tasa >= 30 && semana.tasa < 50 ? 'text-yellow-400 font-semibold' : 'text-slate-500'}`}>30–50% — Normal en campo</p>
+                  <p className={`text-xs ${semana.tasa >= 50 ? 'text-green-400 font-semibold' : 'text-slate-500'}`}>{'>= 50% — Excelente'}</p>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
