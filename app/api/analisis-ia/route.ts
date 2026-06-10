@@ -33,14 +33,16 @@ Analiza estas notas y responde en español con exactamente este formato (sin int
 
 **Oportunidad:** [una cosa específica que puedes ofrecerle basado en su historial]`
 
-  if (!process.env.GROQ_API_KEY) {
+  const groqKey = (process.env.GROQ_API_KEY || '').replace(/^﻿/, '').trim()
+
+  if (!groqKey) {
     return Response.json({ analisis: null, error: 'GROQ_API_KEY no configurada' })
   }
 
   const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
+      'Authorization': `Bearer ${groqKey}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
