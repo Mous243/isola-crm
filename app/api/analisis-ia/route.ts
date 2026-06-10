@@ -32,6 +32,10 @@ Analiza estas notas y responde en español con exactamente este formato (sin int
 
 **Oportunidad:** [una cosa específica que puedes ofrecerle basado en su historial]`
 
+  if (!process.env.GROQ_API_KEY) {
+    return Response.json({ analisis: null, error: 'GROQ_API_KEY no configurada' })
+  }
+
   const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -45,6 +49,11 @@ Analiza estas notas y responde en español con exactamente este formato (sin int
       temperature: 0.3,
     }),
   })
+
+  if (!res.ok) {
+    const errText = await res.text()
+    return Response.json({ analisis: null, error: `Groq ${res.status}: ${errText.slice(0, 200)}` })
+  }
 
   const data = await res.json()
   const analisis = data.choices?.[0]?.message?.content?.trim() || null

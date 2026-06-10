@@ -66,9 +66,9 @@ export default function Dashboard() {
   const [visitasHoy, setVisitasHoy] = useState<any[]>([])
   const [loaded, setLoaded] = useState(false)
 
-  const hoy = new Date().toISOString().split('T')[0]
-  const hace7 = new Date(Date.now() - 7 * 864e5).toISOString().split('T')[0]
-  const en3 = new Date(Date.now() + 3 * 864e5).toISOString().split('T')[0]
+  const hoy = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Caracas' })
+  const hace7 = new Date(Date.now() - 7 * 864e5).toLocaleDateString('en-CA', { timeZone: 'America/Caracas' })
+  const en3 = new Date(Date.now() + 3 * 864e5).toLocaleDateString('en-CA', { timeZone: 'America/Caracas' })
 
   useEffect(() => {
     Promise.all([

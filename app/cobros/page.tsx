@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { supabase, type Cobro, type Cliente } from '@/lib/supabase'
 
 const DIAS_CREDITO = 10
-function hoy() { return new Date().toISOString().split('T')[0] }
+function hoy() { return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Caracas' }) }
 function sumarDias(fechaStr: string, dias: number) {
   const d = new Date(fechaStr + 'T00:00:00')
   d.setDate(d.getDate() + dias)
@@ -36,8 +36,7 @@ export default function Cobros() {
 
   const cargar = async () => {
     const q = supabase.from('cobros').select('*, clientes(nombre_negocio, propietario, telefono, codigo_cliente)').order('fecha_vencimiento')
-    if (filtroEstado !== 'todos' && filtroEstado !== 'cancelado') q.or(`estado.eq.${filtroEstado},estado.eq.cancelado`)
-    else if (filtroEstado !== 'todos') q.eq('estado', filtroEstado)
+    if (filtroEstado !== 'todos') q.eq('estado', filtroEstado)
     const { data } = await q
     setCobros(data || [])
   }
