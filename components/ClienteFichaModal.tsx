@@ -61,6 +61,7 @@ export default function ClienteFichaModal({ clienteId, onClose }: Props) {
   const [analisisIA, setAnalisisIA] = useState<string | null>(null)
   const [loadingIA, setLoadingIA] = useState(false)
   const [errorIA, setErrorIA] = useState<string | null>(null)
+  const [iaIntentada, setIaIntentada] = useState(false)
 
   useEffect(() => {
     Promise.all([
@@ -77,6 +78,7 @@ export default function ClienteFichaModal({ clienteId, onClose }: Props) {
 
       const tieneNotas = visitasData.some((v: any) => v.notas_visita?.trim())
       if (tieneNotas && clienteData) {
+        setIaIntentada(true)
         setLoadingIA(true)
         fetch('/api/analisis-ia', {
           method: 'POST',
@@ -126,14 +128,16 @@ export default function ClienteFichaModal({ clienteId, onClose }: Props) {
               </div>
 
               {/* Análisis IA */}
-              {(loadingIA || analisisIA || errorIA) && (
+              {iaIntentada && (
                 <div className="rounded-xl p-4 border bg-amber-950/30 border-amber-700/40">
                   <p className="text-xs font-semibold text-amber-400 mb-2">🤖 Análisis IA — basado en tus notas</p>
                   {loadingIA
                     ? <p className="text-xs text-slate-400 animate-pulse">Analizando notas...</p>
                     : errorIA
                     ? <p className="text-xs text-red-400">Error: {errorIA}</p>
-                    : <div className="text-sm text-slate-200 whitespace-pre-wrap leading-relaxed">{analisisIA}</div>
+                    : analisisIA
+                    ? <div className="text-sm text-slate-200 whitespace-pre-wrap leading-relaxed">{analisisIA}</div>
+                    : <p className="text-xs text-slate-400">No se generó análisis para este cliente.</p>
                   }
                 </div>
               )}
