@@ -12,6 +12,8 @@ export default function Metricas() {
   const [metaForm, setMetaForm] = useState({ monto: '', visitas: '', cobranza: '', visitas_efectivas: '' })
   const [editMeta, setEditMeta] = useState(false)
   const [metasVar, setMetasVar] = useState<any[]>([])
+  const [noVisitados, setNoVisitados] = useState<string[]>([])
+  const [showNoVisitados, setShowNoVisitados] = useState(false)
   const [addingVar, setAddingVar] = useState(false)
   const [expandedMeta, setExpandedMeta] = useState<number | null>(null)
   const [varForm, setVarForm] = useState({ nombre: '', tipo: 'captaciones', meta_valor: '', producto_keyword: '' })
@@ -33,7 +35,7 @@ export default function Metricas() {
       supabase.from('cobros').select('monto').eq('estado', 'pagado').gte('fecha_pago', inicioMes),
       supabase.from('metas_variables').select('*').eq('periodo', periodo),
       supabase.from('clientes').select('id', { count: 'exact', head: true }).gte('fecha_captacion', inicioMes),
-      supabase.from('clientes').select('id', { count: 'exact', head: true }).in('status', ['activo', 'nuevo', 'inactivo']),
+      supabase.from('clientes').select('id, nombre_negocio').in('status', ['activo', 'nuevo']).order('nombre_negocio'),
     ]).then(([vs, hist, m, topVs, mesVs, cobranzaVs, metasVarRes, captRes, carteraRes]) => {
       const v = vs.data || []
       const conPedido = v.filter((x: any) => x.resultado === 'visita_efectiva' && (x.monto_pedido || 0) > 0)
@@ -64,15 +66,18 @@ export default function Metricas() {
       setMeta(m.data)
       const mv = mesVs.data || []
       const cobranzaTotal = (cobranzaVs.data || []).reduce((a: number, x: any) => a + Number(x.monto), 0)
+      const captaciones = captRes.count || 0
+      const todosClientes: any[] = carteraRes.data || []
+      const totalCartera = todosClientes.length
+      const visitadosSet = new Set(mv.map((x: any) => x.cliente_id))
+      const clientesNoVisitados = todosClientes.filter((c: any) => !visitadosSet.has(c.id)).map((c: any) => c.nombre_negocio)
+      setNoVisitados(clientesNoVisitados)
       setMes({
         monto: mv.reduce((a: number, x: any) => a + (x.monto_pedido || 0), 0),
-        visitas: mv.length,
+        visitas: visitadosSet.size,
         cobranza: cobranzaTotal,
-        visitas_efectivas: mv.filter((x: any) => x.resultado === 'visita_efectiva' && (x.monto_pedido || 0) > 0).length,
+        visitas_efectivas: new Set(mv.filter((x: any) => x.resultado === 'visita_efectiva' && (x.monto_pedido || 0) > 0).map((x: any) => x.cliente_id)).size,
       })
-
-      const captaciones = captRes.count || 0
-      const totalCartera = carteraRes.count || 0
       const efectivosMes = mv.filter((x: any) => x.resultado === 'visita_efectiva' && (x.monto_pedido || 0) > 0)
       const clientesEfectivos = new Set(efectivosMes.map((x: any) => x.cliente_id)).size
       const calculadas = (metasVarRes.data || []).map((mv2: any) => {
@@ -212,6 +217,23 @@ export default function Metricas() {
                   <div className="h-full bg-blue-500 rounded-full transition-all"
                     style={{ width: `${Math.min(mes.visitas / meta.meta_visitas * 100, 100)}%` }} />
                 </div>
+                {noVisitados.length > 0 && (
+                  <div className="mt-1.5">
+                    <button onClick={() => setShowNoVisitados(v => !v)}
+                      className="text-xs text-slate-500 hover:text-blue-400 transition-colors">
+                      {showNoVisitados ? '▲ ocultar' : `▼ ${noVisitados.length} cliente${noVisitados.length !== 1 ? 's' : ''} sin visitar este mes`}
+                    </button>
+                    {showNoVisitados && (
+                      <div className="mt-1.5 flex flex-wrap gap-1.5">
+                        {noVisitados.map((nombre, i) => (
+                          <span key={i} className="text-xs bg-blue-900/30 text-blue-300 border border-blue-800/50 rounded-full px-2.5 py-0.5">
+                            {nombre}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
             {meta.meta_visitas_efectivas > 0 && (
