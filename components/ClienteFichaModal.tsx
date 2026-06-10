@@ -58,6 +58,8 @@ export default function ClienteFichaModal({ clienteId, onClose }: Props) {
   const [visitas, setVisitas] = useState<Visita[]>([])
   const [catalog, setCatalog] = useState<Producto[]>([])
   const [loading, setLoading] = useState(true)
+  const [analisisIA, setAnalisisIA] = useState<string | null>(null)
+  const [loadingIA, setLoadingIA] = useState(false)
 
   useEffect(() => {
     Promise.all([
@@ -65,10 +67,25 @@ export default function ClienteFichaModal({ clienteId, onClose }: Props) {
       supabase.from('visitas').select('*').eq('cliente_id', clienteId).order('fecha', { ascending: false }).limit(20),
       supabase.from('productos').select('id,nombre,categoria').eq('activo', true).limit(500),
     ]).then(([c, v, p]) => {
-      setCliente(c.data)
-      setVisitas(v.data || [])
+      const clienteData = c.data
+      const visitasData = v.data || []
+      setCliente(clienteData)
+      setVisitas(visitasData)
       setCatalog(p.data || [])
       setLoading(false)
+
+      const tieneNotas = visitasData.some((v: any) => v.notas_visita?.trim())
+      if (tieneNotas && clienteData) {
+        setLoadingIA(true)
+        fetch('/api/analisis-ia', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ cliente: clienteData, visitas: visitasData }),
+        })
+          .then(r => r.json())
+          .then(d => { setAnalisisIA(d.analisis); setLoadingIA(false) })
+          .catch(() => setLoadingIA(false))
+      }
     })
   }, [clienteId])
 
@@ -102,6 +119,17 @@ export default function ClienteFichaModal({ clienteId, onClose }: Props) {
                   <p className="text-xs text-slate-500 mt-0.5">⏰ Mejor hora: {cliente.hora_ideal_visita}</p>
                 )}
               </div>
+
+              {/* Análisis IA */}
+              {(loadingIA || analisisIA) && (
+                <div className="rounded-xl p-4 border bg-amber-950/30 border-amber-700/40">
+                  <p className="text-xs font-semibold text-amber-400 mb-2">🤖 Análisis IA — basado en tus notas</p>
+                  {loadingIA
+                    ? <p className="text-xs text-slate-400 animate-pulse">Analizando notas...</p>
+                    : <div className="text-sm text-slate-200 whitespace-pre-wrap leading-relaxed">{analisisIA}</div>
+                  }
+                </div>
+              )}
 
               {/* Sugerencias */}
               <div className={`rounded-xl p-4 border ${analisis.sinCompra ? 'bg-red-950/40 border-red-900/50' : 'bg-violet-950/40 border-violet-900/50'}`}>
