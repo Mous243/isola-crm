@@ -35,7 +35,7 @@ export default function Metricas() {
       supabase.from('cobros').select('monto').eq('estado', 'pagado').gte('fecha_pago', inicioMes),
       supabase.from('metas_variables').select('*').eq('periodo', periodo),
       supabase.from('clientes').select('id', { count: 'exact', head: true }).gte('fecha_captacion', inicioMes),
-      supabase.from('clientes').select('id, nombre_negocio').in('status', ['activo', 'nuevo']).order('nombre_negocio'),
+      supabase.from('clientes').select('id, nombre_negocio').in('status', ['activo', 'nuevo', 'inactivo']).order('nombre_negocio'),
     ]).then(([vs, hist, m, topVs, mesVs, cobranzaVs, metasVarRes, captRes, carteraRes]) => {
       const v = vs.data || []
       const conPedido = v.filter((x: any) => x.resultado === 'visita_efectiva' && (x.monto_pedido || 0) > 0)
@@ -207,6 +207,30 @@ export default function Metricas() {
                   style={{ width: `${Math.min(mes.monto / meta.meta_monto * 100, 100)}%` }} />
               </div>
             </div>
+            {meta.meta_visitas_efectivas > 0 && (
+              <div>
+                <div className="flex justify-between text-sm mb-1">
+                  <span>Visitas efectivas del mes</span>
+                  <span className="text-orange-400">{mes.visitas_efectivas} / {meta.meta_visitas_efectivas}</span>
+                </div>
+                <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
+                  <div className="h-full bg-orange-500 rounded-full transition-all"
+                    style={{ width: `${Math.min(mes.visitas_efectivas / meta.meta_visitas_efectivas * 100, 100)}%` }} />
+                </div>
+              </div>
+            )}
+            {meta.meta_cobranza > 0 && (
+              <div>
+                <div className="flex justify-between text-sm mb-1">
+                  <span>Cobranza del mes</span>
+                  <span className="text-green-400">${mes.cobranza.toFixed(0)} / ${meta.meta_cobranza}</span>
+                </div>
+                <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
+                  <div className="h-full bg-green-600 rounded-full transition-all"
+                    style={{ width: `${Math.min(mes.cobranza / meta.meta_cobranza * 100, 100)}%` }} />
+                </div>
+              </div>
+            )}
             {meta.meta_visitas > 0 && (
               <div>
                 <div className="flex justify-between text-sm mb-1">
@@ -234,30 +258,6 @@ export default function Metricas() {
                     )}
                   </div>
                 )}
-              </div>
-            )}
-            {meta.meta_visitas_efectivas > 0 && (
-              <div>
-                <div className="flex justify-between text-sm mb-1">
-                  <span>Visitas efectivas del mes</span>
-                  <span className="text-orange-400">{mes.visitas_efectivas} / {meta.meta_visitas_efectivas}</span>
-                </div>
-                <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
-                  <div className="h-full bg-orange-500 rounded-full transition-all"
-                    style={{ width: `${Math.min(mes.visitas_efectivas / meta.meta_visitas_efectivas * 100, 100)}%` }} />
-                </div>
-              </div>
-            )}
-            {meta.meta_cobranza > 0 && (
-              <div>
-                <div className="flex justify-between text-sm mb-1">
-                  <span>Cobranza del mes</span>
-                  <span className="text-green-400">${mes.cobranza.toFixed(0)} / ${meta.meta_cobranza}</span>
-                </div>
-                <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
-                  <div className="h-full bg-green-600 rounded-full transition-all"
-                    style={{ width: `${Math.min(mes.cobranza / meta.meta_cobranza * 100, 100)}%` }} />
-                </div>
               </div>
             )}
           </div>
