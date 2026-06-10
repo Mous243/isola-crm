@@ -1,6 +1,7 @@
 export const runtime = 'nodejs'
 
 export async function POST(req: Request) {
+  try {
   const { cliente, visitas } = await req.json()
 
   const notasConTexto = (visitas as any[]).filter((v: any) => v.notas_visita?.trim())
@@ -59,4 +60,7 @@ Analiza estas notas y responde en español con exactamente este formato (sin int
   const analisis = data.choices?.[0]?.message?.content?.trim() || null
 
   return Response.json({ analisis })
+  } catch (e: any) {
+    return Response.json({ analisis: null, error: `Excepción: ${String(e)}` })
+  }
 }
