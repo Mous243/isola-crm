@@ -109,8 +109,11 @@ export default function RegistrarVisita() {
       .order('nro_factura', { ascending: false }).limit(1)
       .then(({ data }) => {
         const ultima = data?.[0]?.nro_factura as string | undefined
-        const siguiente = ultima ? (parseInt(ultima.replace(/^600/, ''), 10) + 1) : 1
-        setProximaFactura(String(siguiente).padStart(4, '0'))
+        if (!ultima || ultima.startsWith('600')) {
+          setProximaFactura('10000001')
+        } else {
+          setProximaFactura(String(parseInt(ultima, 10) + 1))
+        }
       })
   }
   useEffect(cargarProximaFactura, [])
@@ -232,8 +235,7 @@ export default function RegistrarVisita() {
 
   const facturaDuplicada = async (numero: string, excluirId?: number) => {
     if (!numero) return false
-    const completo = `600${numero}`
-    let q = supabase.from('visitas').select('id').eq('nro_factura', completo).limit(1)
+    let q = supabase.from('visitas').select('id').eq('nro_factura', numero).limit(1)
     if (excluirId) q = q.neq('id', excluirId)
     const { data } = await q
     return (data?.length || 0) > 0
@@ -243,7 +245,7 @@ export default function RegistrarVisita() {
     if (!form.cliente_id) return alert('Selecciona un cliente')
     if (form.resultado === 'otro' && !form.resultado_otro.trim()) return alert('Escribe el caso puntual')
     if (form.nro_factura && await facturaDuplicada(form.nro_factura)) {
-      return alert(`La factura 600${form.nro_factura} ya está registrada. Verifica el número.`)
+      return alert(`La factura ${form.nro_factura} ya está registrada. Verifica el número.`)
     }
     setSaving(true)
     const resultadoFinal = form.resultado === 'otro' ? form.resultado_otro.trim() : form.resultado
@@ -257,7 +259,7 @@ export default function RegistrarVisita() {
       productos_pedidos: lineas.length > 0 ? lineas : [],
       notas_visita: form.notas_visita,
       dias_credito: form.dias_credito,
-      nro_factura: form.nro_factura ? `600${form.nro_factura}` : null,
+      nro_factura: form.nro_factura || null,
     })
     if (form.dias_credito > 0 && montoFinal > 0) {
       const [y, m, d] = form.fecha.split('-').map(Number)
@@ -267,7 +269,7 @@ export default function RegistrarVisita() {
         cliente_id: +form.cliente_id,
         monto: montoFinal,
         moneda: form.moneda,
-        descripcion: form.nro_factura ? `600${form.nro_factura}` : `Pedido ${form.fecha}`,
+        descripcion: form.nro_factura || `Pedido ${form.fecha}`,
         fecha_emision: form.fecha,
         fecha_vencimiento: fechaVenc,
         estado: 'pendiente',
@@ -278,7 +280,7 @@ export default function RegistrarVisita() {
     if (resultadoFinal === 'visita_efectiva' && montoFinal > 0 && clienteSel?.telefono) {
       setConfirmacionWA({
         telefono: clienteSel.telefono,
-        link: waConfirmacionPedido(clienteSel, montoFinal, form.moneda, lineas, form.nro_factura ? `600${form.nro_factura}` : null),
+        link: waConfirmacionPedido(clienteSel, montoFinal, form.moneda, lineas, form.nro_factura || null),
       })
     } else {
       setConfirmacionWA(null)
@@ -292,7 +294,7 @@ export default function RegistrarVisita() {
     const siguiente = clientes[idxActual + 1] || null
     setSiguienteCliente(siguiente)
     if (form.nro_factura) {
-      setProximaFactura(String(parseInt(form.nro_factura, 10) + 1).padStart(4, '0'))
+      setProximaFactura(String(parseInt(form.nro_factura, 10) + 1))
     }
     setForm(f => ({ ...f, notas_visita: '', monto_manual: 0, resultado: 'visita_efectiva', resultado_otro: '', nro_factura: '' }))
   }
@@ -319,7 +321,7 @@ export default function RegistrarVisita() {
       monto_pedido: v.monto_pedido || 0,
       notas_visita: v.notas_visita || '',
       dias_credito: (v as Visita & { dias_credito?: number }).dias_credito || 21,
-      nro_factura: ((v as Visita & { nro_factura?: string }).nro_factura || '').replace(/^600/, ''),
+      nro_factura: (v as Visita & { nro_factura?: string }).nro_factura || '',
     })
     const cantInit: Record<string, number> = {}
     ;((v.productos_pedidos || []) as LineaPedido[]).forEach(l => { cantInit[l.nombre] = l.cajas })
@@ -331,7 +333,7 @@ export default function RegistrarVisita() {
   const guardarEdicion = async () => {
     if (!editVisita) return
     if (editForm.nro_factura && await facturaDuplicada(editForm.nro_factura, editVisita.id)) {
-      return alert(`La factura 600${editForm.nro_factura} ya está registrada en otra visita.`)
+      return alert(`La factura ${editForm.nro_factura} ya está registrada en otra visita.`)
     }
     setSavingEdit(true)
     const resultadoFinal = editForm.resultado === 'otro' ? editForm.resultado_otro.trim() : editForm.resultado
@@ -345,7 +347,7 @@ export default function RegistrarVisita() {
       productos_pedidos: editLineas,
       notas_visita: editForm.notas_visita,
       dias_credito: editForm.dias_credito,
-      nro_factura: editForm.nro_factura ? `600${editForm.nro_factura}` : null,
+      nro_factura: editForm.nro_factura || null,
     }).eq('id', editVisita.id)
     setSavingEdit(false)
     setEditVisita(null)
@@ -500,12 +502,9 @@ export default function RegistrarVisita() {
             {editForm.resultado === 'visita_efectiva' && (
               <div>
                 <span className="text-xs text-slate-400">Nro. factura</span>
-                <div className="flex mt-1">
-                  <span className="bg-slate-700 border border-r-0 border-slate-600 rounded-l-lg px-3 py-2 text-sm font-mono text-slate-300 select-none">600</span>
-                  <input value={editForm.nro_factura} onChange={e => setEditForm(f => ({ ...f, nro_factura: e.target.value.replace(/\D/g, '').slice(0, 6) }))}
-                    placeholder="0000" inputMode="numeric"
-                    className="flex-1 bg-slate-800 border border-slate-700 rounded-r-lg px-3 py-2 text-sm font-mono" />
-                </div>
+                <input value={editForm.nro_factura} onChange={e => setEditForm(f => ({ ...f, nro_factura: e.target.value.replace(/\D/g, '').slice(0, 8) }))}
+                  placeholder="10000001" inputMode="numeric"
+                  className="w-full mt-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm font-mono" />
               </div>
             )}
             <label className="block">
@@ -819,18 +818,17 @@ export default function RegistrarVisita() {
                   <span className="text-xs text-slate-400">Nro. factura</span>
                   {proximaFactura && form.nro_factura !== proximaFactura && (
                     <button onClick={() => setForm(f => ({ ...f, nro_factura: proximaFactura }))} className="text-xs text-violet-400 hover:text-violet-300">
-                      Usar sugerido: 600{proximaFactura}
+                      Usar sugerido: {proximaFactura}
                     </button>
                   )}
                 </div>
                 <div className="flex mt-1">
-                  <span className="bg-slate-700 border border-r-0 border-slate-600 rounded-l-lg px-3 py-2 text-sm font-mono text-slate-300 select-none">600</span>
                   <input
                     value={form.nro_factura}
-                    onChange={e => setForm({ ...form, nro_factura: e.target.value.replace(/\D/g, '').slice(0, 6) })}
-                    placeholder="0000"
+                    onChange={e => setForm({ ...form, nro_factura: e.target.value.replace(/\D/g, '').slice(0, 8) })}
+                    placeholder="10000001"
                     inputMode="numeric"
-                    className="flex-1 bg-slate-800 border border-slate-700 rounded-r-lg px-3 py-2 text-sm font-mono" />
+                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm font-mono" />
                 </div>
                 <p className="text-[11px] text-slate-500 mt-1">Sugerido automáticamente según la última factura registrada — puedes corregirlo si es necesario.</p>
               </div>
