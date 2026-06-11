@@ -106,14 +106,11 @@ export default function RegistrarVisita() {
 
   const cargarProximaFactura = () => {
     supabase.from('visitas').select('nro_factura').not('nro_factura', 'is', null)
+      .not('nro_factura', 'like', '600%')
       .order('nro_factura', { ascending: false }).limit(1)
       .then(({ data }) => {
         const ultima = data?.[0]?.nro_factura as string | undefined
-        if (!ultima || ultima.startsWith('600')) {
-          setProximaFactura('10000001')
-        } else {
-          setProximaFactura(String(parseInt(ultima, 10) + 1))
-        }
+        setProximaFactura(ultima ? String(parseInt(ultima, 10) + 1) : '10000001')
       })
   }
   useEffect(cargarProximaFactura, [])
