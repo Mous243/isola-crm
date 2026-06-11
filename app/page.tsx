@@ -127,7 +127,7 @@ export default function Dashboard() {
                   <div key={c.id} className="mb-2 p-2 bg-red-950/50 rounded-lg border border-red-900/40 flex items-center justify-between gap-2">
                     <div className="min-w-0">
                       <p className="font-medium text-sm truncate">{(c.clientes as any)?.nombre_negocio}</p>
-                      <p className="text-xs text-slate-400">{c.moneda} {c.monto.toFixed(2)} · {dias <= 0 ? 'VENCIDO' : `vence en ${dias}d`}</p>
+                      <p className="text-xs text-slate-400">{c.moneda} {c.monto.toFixed(2)} · {dias <= 0 ? `⚠ ${Math.abs(dias)}d vencido` : `vence en ${dias}d`}</p>
                     </div>
                     {(c.clientes as any)?.telefono && (
                       <a href={waRecordatorio(c)} target="_blank" rel="noreferrer"
