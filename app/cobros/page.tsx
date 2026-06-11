@@ -119,7 +119,8 @@ export default function Cobros() {
     setTab('lista')
   }
 
-  const totalPendiente = cobros.filter(c => c.estado === 'pendiente').reduce((a, c) => a + c.monto, 0)
+  const totalPendiente = cobros.filter(c => c.estado === 'pendiente' && c.origen !== 'isola_cxc').reduce((a, c) => a + c.monto, 0)
+  const totalIsolaCxc = cobros.filter(c => (c.estado === 'pendiente' || c.estado === 'parcial') && c.origen === 'isola_cxc').reduce((a, c) => a + c.monto, 0)
 
   const cobrosFiltrados = cobros.filter(c => {
     if (!busqueda.trim()) return true
@@ -213,9 +214,17 @@ export default function Cobros() {
             placeholder="🔍 Buscar por cliente, dueño o N° factura..."
             className="flex-1 min-w-[200px] bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm" />
           {filtroEstado !== 'pagado' && (
-            <div className="bg-slate-900 rounded-lg px-3 py-1.5 border border-slate-800">
-              <span className="text-xs text-slate-400">Total pendiente: </span>
-              <span className="text-violet-400 font-medium">${totalPendiente.toFixed(2)}</span>
+            <div className="flex gap-2 flex-wrap">
+              <div className="bg-slate-900 rounded-lg px-3 py-1.5 border border-slate-800">
+                <span className="text-xs text-slate-400">Mi cartera: </span>
+                <span className="text-violet-400 font-medium">${totalPendiente.toFixed(2)}</span>
+              </div>
+              {totalIsolaCxc > 0 && (
+                <div className="bg-slate-900 rounded-lg px-3 py-1.5 border border-slate-700">
+                  <span className="text-xs text-slate-500">📋 ISOLA CXC: </span>
+                  <span className="text-slate-400 font-medium">${totalIsolaCxc.toFixed(2)}</span>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -234,7 +243,12 @@ export default function Cobros() {
                 }`}>
                 <div className="flex items-start justify-between">
                   <div>
-                    <p className="font-medium">{cl?.nombre_negocio}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium">{cl?.nombre_negocio}</p>
+                      {c.origen === 'isola_cxc' && (
+                        <span className="text-[10px] bg-slate-700 text-slate-400 px-1.5 py-0.5 rounded font-mono">📋 ISOLA</span>
+                      )}
+                    </div>
                     <p className="text-xs text-slate-400">{cl?.propietario || '—'}</p>
                   </div>
                   <div className="text-right">
@@ -316,6 +330,9 @@ export default function Cobros() {
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between"><span className="text-slate-400">Monto</span><span className="font-medium text-violet-400">{cobroDetalle.moneda} {cobroDetalle.monto.toFixed(2)}</span></div>
                 <div className="flex justify-between"><span className="text-slate-400">N° factura / descripción</span><span className="font-mono">{cobroDetalle.descripcion || '—'}</span></div>
+                {cobroDetalle.nro_documento_isola && (
+                  <div className="flex justify-between"><span className="text-slate-400">N° documento ISOLA</span><span className="font-mono text-slate-300">{cobroDetalle.nro_documento_isola}</span></div>
+                )}
                 <div className="flex justify-between"><span className="text-slate-400">Emisión</span><span>{cobroDetalle.fecha_emision || '—'}</span></div>
                 <div className="flex justify-between"><span className="text-slate-400">Vencimiento</span><span className={diasColor(cobroDetalle.fecha_vencimiento)}>{cobroDetalle.fecha_vencimiento}</span></div>
                 <div className="flex justify-between"><span className="text-slate-400">Estado</span><span className="capitalize">{cobroDetalle.estado}</span></div>

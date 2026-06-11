@@ -61,6 +61,7 @@ export default function RegistrarVisita() {
     notas_visita: '',
     dias_credito: 21,
     nro_factura: '',
+    nro_documento_isola: '',
   })
   const [saving, setSaving] = useState(false)
   const [ok, setOk] = useState(false)
@@ -257,6 +258,7 @@ export default function RegistrarVisita() {
       notas_visita: form.notas_visita,
       dias_credito: form.dias_credito,
       nro_factura: form.nro_factura || null,
+      nro_documento_isola: form.nro_documento_isola || null,
     })
     if (form.dias_credito > 0 && montoFinal > 0) {
       const [y, m, d] = form.fecha.split('-').map(Number)
@@ -267,6 +269,7 @@ export default function RegistrarVisita() {
         monto: montoFinal,
         moneda: form.moneda,
         descripcion: form.nro_factura || `Pedido ${form.fecha}`,
+        nro_documento_isola: form.nro_documento_isola || null,
         fecha_emision: form.fecha,
         fecha_vencimiento: fechaVenc,
         estado: 'pendiente',
@@ -293,7 +296,7 @@ export default function RegistrarVisita() {
     if (form.nro_factura) {
       setProximaFactura(String(parseInt(form.nro_factura, 10) + 1))
     }
-    setForm(f => ({ ...f, notas_visita: '', monto_manual: 0, resultado: 'visita_efectiva', resultado_otro: '', nro_factura: '' }))
+    setForm(f => ({ ...f, notas_visita: '', monto_manual: 0, resultado: 'visita_efectiva', resultado_otro: '', nro_factura: '', nro_documento_isola: '' }))
   }
 
   const cargarHistorial = async (fecha: string) => {
@@ -828,6 +831,19 @@ export default function RegistrarVisita() {
                     className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm font-mono" />
                 </div>
                 <p className="text-[11px] text-slate-500 mt-1">Sugerido automáticamente según la última factura registrada — puedes corregirlo si es necesario.</p>
+              </div>
+            )}
+
+            {form.resultado === 'visita_efectiva' && (
+              <div>
+                <span className="text-xs text-slate-400">N° documento ISOLA <span className="text-slate-600">(opcional)</span></span>
+                <input
+                  value={form.nro_documento_isola || ''}
+                  onChange={e => setForm(f => ({ ...f, nro_documento_isola: e.target.value.replace(/\D/g, '').slice(0, 11) }))}
+                  placeholder="00005009xxx"
+                  inputMode="numeric"
+                  className="w-full mt-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm font-mono" />
+                <p className="text-[11px] text-slate-500 mt-1">El número que ISOLA asigna en su sistema — puedes dejarlo en blanco y agregarlo después.</p>
               </div>
             )}
 
