@@ -253,8 +253,8 @@ export default function Cobros() {
                   </div>
                   <div className="text-right">
                     <p className="font-bold text-violet-400">{c.moneda} {c.monto.toFixed(2)}</p>
-                    <p className={`text-xs ${diasColor(c.fecha_vencimiento)}`}>
-                      {dias < 0 ? `Vencido hace ${Math.abs(dias)}d` : dias === 0 ? 'Vence hoy' : `Vence en ${dias}d`}
+                    <p className={`text-xs font-semibold ${diasColor(c.fecha_vencimiento)}`}>
+                      {dias < 0 ? `⚠ ${Math.abs(dias)}d vencido` : dias === 0 ? 'Vence hoy' : `Vence en ${dias}d`}
                     </p>
                   </div>
                 </div>
