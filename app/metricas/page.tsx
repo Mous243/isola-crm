@@ -8,7 +8,7 @@ export default function Metricas() {
   const [historial, setHistorial] = useState<any[]>([])
   const [top, setTop] = useState<any[]>([])
   const [meta, setMeta] = useState<any>(null)
-  const [mes, setMes] = useState<{ monto: number; visitas: number; cobranza: number; visitas_efectivas: number }>({ monto: 0, visitas: 0, cobranza: 0, visitas_efectivas: 0 })
+  const [mes, setMes] = useState<{ monto: number; visitas: number; cobranza: number; visitas_efectivas: number; cajas: number }>({ monto: 0, visitas: 0, cobranza: 0, visitas_efectivas: 0, cajas: 0 })
   const [metaForm, setMetaForm] = useState({ monto: '', visitas: '', cobranza: '', visitas_efectivas: '' })
   const [editMeta, setEditMeta] = useState(false)
   const [metasVar, setMetasVar] = useState<any[]>([])
@@ -78,6 +78,7 @@ export default function Metricas() {
         visitas: visitadosSet.size,
         cobranza: cobranzaTotal,
         visitas_efectivas: new Set(mv.filter((x: any) => x.resultado === 'visita_efectiva' && (x.monto_pedido || 0) > 0).map((x: any) => x.cliente_id)).size,
+        cajas: mv.reduce((a: number, x: any) => a + (x.productos_pedidos || []).reduce((s: number, p: any) => s + (p.cajas || 0), 0), 0),
       })
       const efectivosMes = mv.filter((x: any) => x.resultado === 'visita_efectiva' && (x.monto_pedido || 0) > 0)
       const clientesEfectivos = new Set(efectivosMes.map((x: any) => x.cliente_id)).size
@@ -157,12 +158,13 @@ export default function Metricas() {
       {semana && (
         <div>
           <h2 className="text-sm font-semibold text-slate-400 mb-2">Este mes</h2>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+          <div className="grid grid-cols-2 md:grid-cols-6 gap-2">
             {[
               { label: 'Visitas', value: semana.total },
               { label: 'Clientes', value: semana.clientes },
               { label: 'Con pedido', value: semana.con_pedido },
               { label: 'Monto USD', value: `$${semana.monto.toFixed(0)}` },
+              { label: 'Cajas facturadas', value: mes.cajas },
             ].map(m => (
               <div key={m.label} className="bg-slate-900 rounded-xl p-3 border border-slate-800 text-center">
                 <p className="text-xl font-bold text-violet-400">{m.value}</p>
