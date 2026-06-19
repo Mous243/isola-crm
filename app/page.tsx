@@ -73,7 +73,8 @@ export default function Dashboard() {
   useEffect(() => {
     Promise.all([
       supabase.from('visitas').select('resultado, monto_pedido, notas_visita, clientes(nombre_negocio)').eq('fecha', hoy),
-      supabase.from('cobros').select('*, clientes(nombre_negocio, telefono)').eq('estado', 'pendiente').lte('fecha_vencimiento', en3).order('fecha_vencimiento'),
+      supabase.from('cobros').select('*, clientes(nombre_negocio, telefono)').eq('estado', 'pendiente').lte('fecha_vencimiento', en3)
+        .or(`origen.neq.isola_cxc,fecha_vencimiento.gte.${hoy}`).order('fecha_vencimiento'),
       supabase.from('clientes').select('id, nombre_negocio, fecha_ultima_visita').eq('status', 'activo').or(`fecha_ultima_visita.is.null,fecha_ultima_visita.lt.${hace7}`).order('fecha_ultima_visita', { nullsFirst: true }),
     ]).then(([v, c, s]) => {
       const vs = v.data || []

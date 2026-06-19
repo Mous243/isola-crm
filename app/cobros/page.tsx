@@ -33,6 +33,7 @@ export default function Cobros() {
   const [pagoModal, setPagoModal] = useState<Cobro | null>(null)
   const [fechaPagoInput, setFechaPagoInput] = useState(hoy())
   const [guardandoPago, setGuardandoPago] = useState(false)
+  const [mostrarCxcAntiguos, setMostrarCxcAntiguos] = useState(false)
 
   const cargar = async () => {
     const q = supabase.from('cobros').select('*, clientes(nombre_negocio, propietario, telefono, codigo_cliente)').order('fecha_vencimiento')
@@ -122,14 +123,20 @@ export default function Cobros() {
   const totalPendiente = cobros.filter(c => c.estado === 'pendiente' && c.origen !== 'isola_cxc').reduce((a, c) => a + c.monto, 0)
   const totalIsolaCxc = cobros.filter(c => (c.estado === 'pendiente' || c.estado === 'parcial') && c.origen === 'isola_cxc').reduce((a, c) => a + c.monto, 0)
 
+  const esCxcAntiguo = (c: Cobro) => c.origen === 'isola_cxc' && c.estado === 'pendiente' && c.fecha_vencimiento < hoy()
+  const cxcAntiguosCount = cobros.filter(esCxcAntiguo).length
+
   const cobrosFiltrados = cobros.filter(c => {
-    if (!busqueda.trim()) return true
-    const q = busqueda.toLowerCase()
-    const cl = c.clientes as any
-    return cl?.nombre_negocio?.toLowerCase().includes(q)
-      || cl?.propietario?.toLowerCase().includes(q)
-      || cl?.codigo_cliente?.toLowerCase().includes(q)
-      || (c.descripcion || '').toLowerCase().includes(q)
+    if (busqueda.trim()) {
+      const q = busqueda.toLowerCase()
+      const cl = c.clientes as any
+      return cl?.nombre_negocio?.toLowerCase().includes(q)
+        || cl?.propietario?.toLowerCase().includes(q)
+        || cl?.codigo_cliente?.toLowerCase().includes(q)
+        || (c.descripcion || '').toLowerCase().includes(q)
+    }
+    if (!mostrarCxcAntiguos && esCxcAntiguo(c)) return false
+    return true
   })
 
   const diasColor = (venc: string) => {
@@ -228,6 +235,13 @@ export default function Cobros() {
             </div>
           )}
         </div>
+
+        {cxcAntiguosCount > 0 && (
+          <button onClick={() => setMostrarCxcAntiguos(v => !v)}
+            className="text-xs text-slate-500 hover:text-slate-300 transition-colors">
+            {mostrarCxcAntiguos ? '▲ ocultar antiguos ISOLA CXC' : `👁 ver ${cxcAntiguosCount} cobro${cxcAntiguosCount > 1 ? 's' : ''} ISOLA CXC antiguos sin gestión`}
+          </button>
+        )}
 
         <div className="space-y-2">
           {cobrosFiltrados.map(c => {
