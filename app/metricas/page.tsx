@@ -7,6 +7,7 @@ export default function Metricas() {
   const [semana, setSemana] = useState<any>(null)
   const [historial, setHistorial] = useState<any[]>([])
   const [top, setTop] = useState<any[]>([])
+  const [topCajas, setTopCajas] = useState<{ nombre: string; cajas: number }[]>([])
   const [meta, setMeta] = useState<any>(null)
   const [mes, setMes] = useState<{ monto: number; visitas: number; cobranza: number; visitas_efectivas: number; cajas: number }>({ monto: 0, visitas: 0, cobranza: 0, visitas_efectivas: 0, cajas: 0 })
   const [metaForm, setMetaForm] = useState({ monto: '', visitas: '', cobranza: '', visitas_efectivas: '' })
@@ -17,6 +18,7 @@ export default function Metricas() {
   const [showTasaInfo, setShowTasaInfo] = useState(false)
   const [addingVar, setAddingVar] = useState(false)
   const [expandedMeta, setExpandedMeta] = useState<number | null>(null)
+  const [verTodasCajas, setVerTodasCajas] = useState(false)
   const [varForm, setVarForm] = useState({ nombre: '', tipo: 'captaciones', meta_valor: '', producto_keyword: '' })
   const periodo = new Date().toISOString().slice(0, 7)
 
@@ -80,6 +82,15 @@ export default function Metricas() {
         visitas_efectivas: new Set(mv.filter((x: any) => x.resultado === 'visita_efectiva' && (x.monto_pedido || 0) > 0).map((x: any) => x.cliente_id)).size,
         cajas: mv.reduce((a: number, x: any) => a + (x.productos_pedidos || []).reduce((s: number, p: any) => s + (p.cajas || 0), 0), 0),
       })
+
+      const porClienteCajas: Record<number, { nombre: string; cajas: number }> = {}
+      for (const row of mv) {
+        const cajasFila = (row.productos_pedidos || []).reduce((s: number, p: any) => s + (p.cajas || 0), 0)
+        if (cajasFila <= 0) continue
+        if (!porClienteCajas[row.cliente_id]) porClienteCajas[row.cliente_id] = { nombre: (row.clientes as any)?.nombre_negocio || `#${row.cliente_id}`, cajas: 0 }
+        porClienteCajas[row.cliente_id].cajas += cajasFila
+      }
+      setTopCajas(Object.values(porClienteCajas).sort((a, b) => b.cajas - a.cajas))
       const efectivosMes = mv.filter((x: any) => x.resultado === 'visita_efectiva' && (x.monto_pedido || 0) > 0)
       const clientesEfectivos = new Set(efectivosMes.map((x: any) => x.cliente_id)).size
       const calculadas = (metasVarRes.data || []).map((mv2: any) => {
@@ -413,6 +424,36 @@ export default function Metricas() {
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Cajas facturadas por cliente */}
+      {topCajas.length > 0 && (
+        <div className="bg-slate-900 rounded-xl p-4 border border-slate-800">
+          <h2 className="font-semibold mb-3">Cajas facturadas por cliente (mes)</h2>
+          <div className="space-y-2">
+            {(verTodasCajas ? topCajas : topCajas.slice(0, 10)).map((c, i) => (
+              <div key={i} className="flex items-center gap-3">
+                <span className="text-slate-500 text-sm w-5">{i + 1}</span>
+                <div className="flex-1">
+                  <div className="flex justify-between text-sm mb-0.5">
+                    <span className="truncate">{c.nombre}</span>
+                    <span className="text-pink-400 shrink-0">{c.cajas} caja{c.cajas !== 1 ? 's' : ''}</span>
+                  </div>
+                  <div className="h-1.5 bg-slate-800 rounded-full">
+                    <div className="h-full bg-pink-600/60 rounded-full"
+                      style={{ width: `${c.cajas / topCajas[0].cajas * 100}%` }} />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          {topCajas.length > 10 && (
+            <button onClick={() => setVerTodasCajas(v => !v)}
+              className="mt-3 text-xs text-slate-500 hover:text-pink-400 transition-colors">
+              {verTodasCajas ? '▲ ver menos' : `▼ ver los ${topCajas.length} clientes`}
+            </button>
+          )}
         </div>
       )}
 

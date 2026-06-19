@@ -97,6 +97,10 @@ export default function ClienteFichaModal({ clienteId, onClose }: Props) {
   }, [clienteId])
 
   const analisis = !loading && cliente ? analizar(visitas, catalog) : null
+  const periodoActual = new Date().toISOString().slice(0, 7)
+  const cajasMes = visitas
+    .filter(v => v.fecha?.startsWith(periodoActual))
+    .reduce((a, v) => a + (((v.productos_pedidos as any[]) || []).reduce((s, p) => s + (p.cajas || 0), 0)), 0)
 
   return (
     <div className="fixed inset-0 bg-black/75 z-50 flex items-end justify-center" onClick={onClose}>
@@ -125,6 +129,7 @@ export default function ClienteFichaModal({ clienteId, onClose }: Props) {
                 {cliente.hora_ideal_visita && (
                   <p className="text-xs text-slate-500 mt-0.5">⏰ Mejor hora: {cliente.hora_ideal_visita}</p>
                 )}
+                <p className="text-xs text-slate-500 mt-0.5">📦 Cajas facturadas este mes: <span className="text-white font-medium">{cajasMes}</span></p>
               </div>
 
               {/* Análisis IA */}
