@@ -22,6 +22,12 @@ async function sendTelegram(text: string): Promise<{ status: number; text: strin
 // ─── helpers ────────────────────────────────────────────────────────────────
 
 function hoy() { return new Date().toISOString().split('T')[0] }
+function ayerVE(): string {
+  const ahora = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Caracas' }))
+  ahora.setDate(ahora.getDate() - 1)
+  const parts = new Intl.DateTimeFormat('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(ahora)
+  return `${parts.find(p => p.type === 'year')!.value}-${parts.find(p => p.type === 'month')!.value}-${parts.find(p => p.type === 'day')!.value}`
+}
 function en3Dias() {
   const d = new Date(); d.setDate(d.getDate() + 3)
   return d.toISOString().split('T')[0]
@@ -152,8 +158,9 @@ async function buildPayload(forzarManana = false) {
 
     // Despachos (solo guías sin entregar, desde que se empezó a registrar en el CRM)
     type DespachoRow = { id: number; numero_guia: string; conductor_nombre: string; conductor_telefono: string; placa: string; fecha_guia: string; despacho_items: { estado: string }[] }
+    const todasLasGuias = (despachos as DespachoRow[] | null) ?? []
     const pendientes: DespachoRow[] = []
-    for (const d of (despachos as DespachoRow[] | null) ?? []) {
+    for (const d of todasLasGuias) {
       const items = d.despacho_items ?? []
       if (items.length === 0) continue
       const tienePendiente = items.some(i => i.estado === 'pendiente')
@@ -161,6 +168,11 @@ async function buildPayload(forzarManana = false) {
     }
 
     lineas.push('')
+    const ayer = ayerVE()
+    const hayGuiaDeAyer = todasLasGuias.some(d => d.fecha_guia === ayer)
+    if (!hayGuiaDeAyer) {
+      lineas.push(`⚠️ Ayer (${ayer}) no se registró guía de despacho enviada por el equipo de logística`)
+    }
     if (pendientes.length > 0) {
       lineas.push(`🚚 Despachos pendientes: ${pendientes.length}`)
       for (const d of pendientes) {
