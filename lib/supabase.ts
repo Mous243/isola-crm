@@ -26,6 +26,8 @@ export type Cliente = {
   dia_visita?: string
   codigo_cliente?: string
   lista_precio?: string
+  lat?: number
+  lng?: number
   created_at?: string
 }
 

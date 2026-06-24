@@ -3,8 +3,9 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { supabase, type Despacho, type DespachoItem } from '@/lib/supabase'
 
-function direccionDe(cliente: any): string | null {
+function ubicacionDe(cliente: any): string | null {
   if (!cliente) return null
+  if (cliente.lat && cliente.lng) return `${cliente.lat},${cliente.lng}`
   return cliente.direccion || (cliente.zona ? `${cliente.zona}, Venezuela` : null)
 }
 
@@ -33,7 +34,7 @@ export default function Rutero() {
       setDespacho(d)
       if (d) {
         const { data: it } = await supabase
-          .from('despacho_items').select('*, clientes(nombre_negocio, direccion, zona, propietario, telefono)')
+          .from('despacho_items').select('*, clientes(nombre_negocio, direccion, zona, propietario, telefono, lat, lng)')
           .eq('despacho_id', d.id).order('id')
         setItems(it || [])
       }
@@ -44,7 +45,7 @@ export default function Rutero() {
   if (cargando) return <div className="min-h-screen bg-slate-950 flex items-center justify-center text-slate-400">Cargando...</div>
   if (!despacho) return <div className="min-h-screen bg-slate-950 flex items-center justify-center text-slate-400">Guía #{guia} no encontrada.</div>
 
-  const direcciones = items.map(i => direccionDe(i.clientes)).filter((d): d is string => !!d)
+  const direcciones = items.map(i => ubicacionDe(i.clientes)).filter((d): d is string => !!d)
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 px-4 py-6 max-w-lg mx-auto space-y-4">
@@ -65,18 +66,20 @@ export default function Rutero() {
       <div className="space-y-2">
         {items.map(item => {
           const cl = item.clientes as any
-          const direccion = direccionDe(cl)
+          const ubicacion = ubicacionDe(cl)
+          const esPreciso = !!(cl?.lat && cl?.lng)
           return (
             <div key={item.id} className="bg-slate-900 rounded-xl border border-slate-800 p-3 flex items-center gap-3">
               <div className="flex-1 min-w-0">
                 <p className="font-medium text-sm leading-snug">{cl?.nombre_negocio}</p>
                 <p className="text-xs text-slate-500 mt-0.5">
                   {item.codigo_guia ? `Cód. ${item.codigo_guia} · ` : ''}{item.bultos ?? '?'} bultos
-                  {!cl?.direccion && cl?.zona ? ' · ubicación aproximada (solo zona)' : ''}
+                  {!esPreciso && !cl?.direccion && cl?.zona ? ' · ubicación aproximada (solo zona)' : ''}
+                  {!esPreciso && cl?.direccion ? ' · dirección de texto, puede no ser exacta' : ''}
                 </p>
               </div>
-              {direccion ? (
-                <a href={linkCliente(direccion)} target="_blank" rel="noopener noreferrer"
+              {ubicacion ? (
+                <a href={linkCliente(ubicacion)} target="_blank" rel="noopener noreferrer"
                   className="shrink-0 bg-violet-900/50 hover:bg-violet-800/50 text-violet-300 px-3 py-1.5 rounded-lg text-xs whitespace-nowrap">
                   📍 Cómo llegar
                 </a>

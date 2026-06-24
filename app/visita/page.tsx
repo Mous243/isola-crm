@@ -86,6 +86,8 @@ export default function RegistrarVisita() {
   const [editBusquedaProd, setEditBusquedaProd] = useState('')
   const [savingEdit, setSavingEdit] = useState(false)
   const [mostrarFicha, setMostrarFicha] = useState(false)
+  const [guardandoUbicacion, setGuardandoUbicacion] = useState(false)
+  const [errorUbicacion, setErrorUbicacion] = useState('')
 
   const diaHoy = DIAS_ES[new Date().getDay()]
 
@@ -128,7 +130,7 @@ export default function RegistrarVisita() {
     setForm(f => ({ ...f, cliente_id: '' }))
     setBusqueda('')
     setMostrarLista(false)
-    supabase.from('clientes').select('id, nombre_negocio, propietario, zona, dia_visita, codigo_cliente, fecha_ultima_visita, deuda_pendiente, moneda_deuda, telefono')
+    supabase.from('clientes').select('id, nombre_negocio, propietario, zona, dia_visita, codigo_cliente, fecha_ultima_visita, deuda_pendiente, moneda_deuda, telefono, lat, lng')
       .in('status', ['activo', 'nuevo'])
       .eq('dia_visita', dia)
       .order('nombre_negocio')
@@ -199,6 +201,25 @@ export default function RegistrarVisita() {
   const marcarCobroCliente = async (id: number, estado: string) => {
     await supabase.from('cobros').update({ estado }).eq('id', id)
     setCobrosCliente(cs => estado === 'pagado' ? cs.filter(c => c.id !== id) : cs.map(c => c.id === id ? { ...c, estado } : c))
+  }
+
+  const guardarUbicacion = (clienteId: number) => {
+    if (!navigator.geolocation) { setErrorUbicacion('Tu navegador no soporta ubicación'); return }
+    setGuardandoUbicacion(true)
+    setErrorUbicacion('')
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const { latitude, longitude } = pos.coords
+        await supabase.from('clientes').update({ lat: latitude, lng: longitude }).eq('id', clienteId)
+        setClientes(cs => cs.map(c => c.id === clienteId ? { ...c, lat: latitude, lng: longitude } : c))
+        setGuardandoUbicacion(false)
+      },
+      (err) => {
+        setErrorUbicacion(err.code === 1 ? 'Permiso de ubicación denegado' : 'No se pudo obtener la ubicación')
+        setGuardandoUbicacion(false)
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    )
   }
 
   const seleccionarCliente = (c: Cliente) => {
@@ -667,6 +688,15 @@ export default function RegistrarVisita() {
                     className="w-full mt-1 bg-violet-900/40 hover:bg-violet-900/60 border border-violet-800/50 text-violet-300 text-sm font-medium py-2 rounded-lg">
                     🧠 Ver ficha del cliente
                   </button>
+                  {clienteSel.lat && clienteSel.lng ? (
+                    <p className="text-xs text-green-400 mt-1">📍 Ubicación guardada</p>
+                  ) : (
+                    <button onClick={() => guardarUbicacion(clienteSel.id!)} disabled={guardandoUbicacion}
+                      className="w-full mt-1 bg-blue-900/40 hover:bg-blue-900/60 disabled:opacity-50 border border-blue-800/50 text-blue-300 text-sm font-medium py-2 rounded-lg">
+                      {guardandoUbicacion ? 'Obteniendo ubicación...' : '📍 Guardar mi ubicación aquí'}
+                    </button>
+                  )}
+                  {errorUbicacion && <p className="text-xs text-red-400 mt-1">{errorUbicacion}</p>}
                   {cobrosCliente.length > 0 && (
                     <div className="mt-1 space-y-1.5 border-t border-slate-700/50 pt-2">
                       <p className="text-red-400 font-medium text-xs">⚠️ Cobros pendientes con este cliente:</p>
