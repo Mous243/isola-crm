@@ -24,6 +24,14 @@ export default function Despachos() {
   const [tipoDevolucion, setTipoDevolucion] = useState<'definitiva' | 'reentrega'>('reentrega')
   const [motivoDev, setMotivoDev] = useState('')
   const [procesandoDev, setProcesandoDev] = useState(false)
+  const [copiadoId, setCopiadoId] = useState<number | null>(null)
+
+  const copiarRutero = async (d: Despacho) => {
+    const url = `https://isola-crm-web.vercel.app/r/${d.numero_guia}`
+    await navigator.clipboard.writeText(url)
+    setCopiadoId(d.id)
+    setTimeout(() => setCopiadoId(null), 2000)
+  }
 
   const cargar = async () => {
     const { data: d } = await supabase.from('despachos').select('*').order('fecha_guia', { ascending: false })
@@ -124,6 +132,10 @@ export default function Despachos() {
                   📞 Llamar chofer
                 </a>
               )}
+              <button onClick={e => { e.stopPropagation(); copiarRutero(d) }}
+                className="shrink-0 bg-blue-900/50 hover:bg-blue-800/50 text-blue-300 px-3 py-1.5 rounded-lg text-xs">
+                {copiadoId === d.id ? '✅ Copiado' : '🔗 Copiar rutero'}
+              </button>
               <span className="text-slate-500">{expandido === d.id ? '▲' : '▼'}</span>
             </button>
 
