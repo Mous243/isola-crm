@@ -28,72 +28,139 @@ function en3Dias() {
 }
 
 const DIAS_ES = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado']
+const DIAS_DB = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado']
+const CUTOFF_DESPACHOS = '2026-06-23' // primera guía registrada en el CRM; antes de esto no se muestran
 
-function diaHoyVE(): string {
+function diaIdxVE(): number {
   const now = new Date().toLocaleString('en-US', { timeZone: 'America/Caracas', weekday: 'long' })
   const idx = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'].indexOf(now)
-  return DIAS_ES[idx] ?? DIAS_ES[new Date().getDay()]
+  return idx >= 0 ? idx : new Date().getDay()
 }
 
-async function buildPayload() {
+function diaHoyVE(): string {
+  return DIAS_ES[diaIdxVE()]
+}
+
+function periodoActualVE(): string {
+  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Caracas', year: 'numeric', month: '2-digit' }).formatToParts(new Date())
+  return `${parts.find(p => p.type === 'year')!.value}-${parts.find(p => p.type === 'month')!.value}`
+}
+
+function diasHabilesRestantesVE(): number {
+  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Caracas', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date())
+  const anio = +parts.find(p => p.type === 'year')!.value
+  const mes = +parts.find(p => p.type === 'month')!.value
+  const diaActual = +parts.find(p => p.type === 'day')!.value
+  const ultimoDia = new Date(anio, mes, 0).getDate()
+  let count = 0
+  for (let d = diaActual; d <= ultimoDia; d++) {
+    const dow = new Date(anio, mes - 1, d).getDay()
+    if (dow !== 0 && dow !== 6) count++
+  }
+  return count
+}
+
+async function buildPayload(forzarManana = false) {
   const hora = new Date().toLocaleString('es-VE', { timeZone: 'America/Caracas', hour: 'numeric', hour12: false })
   const h = parseInt(hora)
 
-  if (h >= 6 && h < 9) {
-    const hace7dias = new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0]
+  if ((h >= 6 && h < 9) || forzarManana) {
+    const diaIdx = diaIdxVE()
+    if (diaIdx === 0 || diaIdx === 6) return null // sábado y domingo no se trabaja
+
     const diaHoy = diaHoyVE()
+    const diaHoyDb = DIAS_DB[diaIdx]
+    const periodo = periodoActualVE()
+    const inicioMes = `${periodo}-01`
     const hoyStr = new Date().toLocaleString('es-VE', {
       timeZone: 'America/Caracas', day: '2-digit', month: '2-digit', year: 'numeric',
     })
 
-    const [{ data: rutaHoy }, { data: sinVisitar }, { data: cobros }, { data: despachos }] = await Promise.all([
+    const [
+      { count: totalRuta },
+      { data: despachos },
+      { data: visitasMes },
+      { data: metaRow },
+      { data: cobrosCartera },
+      { data: productosFoco },
+    ] = await Promise.all([
       supabase
-        .from('clientes').select('nombre_negocio')
+        .from('clientes').select('id', { count: 'exact', head: true })
         .in('status', ['activo', 'nuevo'])
-        .ilike('dia_visita', diaHoy),
+        .ilike('dia_visita', diaHoyDb),
       supabase
-        .from('clientes').select('id').in('status', ['activo', 'nuevo'])
-        .or(`fecha_ultima_visita.is.null,fecha_ultima_visita.lt.${hace7dias}`),
+        .from('despachos').select('id,numero_guia,conductor_nombre,conductor_telefono,placa,fecha_guia,despacho_items(estado)')
+        .gte('fecha_guia', CUTOFF_DESPACHOS),
       supabase
-        .from('cobros').select('id').not('estado', 'in', '(pagado,cancelado)').lte('fecha_vencimiento', en3Dias()),
+        .from('visitas').select('productos_pedidos').gte('fecha', inicioMes),
       supabase
-        .from('despachos').select('id,numero_guia,conductor_nombre,conductor_telefono,placa,fecha_guia,despacho_items(estado)'),
+        .from('metas').select('meta_cajas').eq('periodo', periodo).eq('tipo', 'mensual').maybeSingle(),
+      supabase
+        .from('cobros').select('monto, moneda, fecha_vencimiento, clientes(nombre_negocio)')
+        .eq('origen', 'crm').not('estado', 'in', '(pagado,cancelado)')
+        .order('fecha_vencimiento', { ascending: true }),
+      supabase
+        .from('metas_variables').select('nombre').eq('periodo', periodo).in('tipo', ['producto_porcentaje', 'producto_cartera']),
     ])
 
     const lineas: string[] = [
-      `☀️ Buenos días — ISOLA CRM`,
-      `${diaHoy.charAt(0).toUpperCase() + diaHoy.slice(1)} ${hoyStr}`,
+      `☀️ RDV ${diaHoy.charAt(0).toUpperCase() + diaHoy.slice(1)}`,
+      `RDV Daniel Guaramato`,
+      hoyStr,
       '',
     ]
 
     // Ruta de hoy
-    const totalRuta = rutaHoy?.length || 0
-    if (totalRuta > 0) {
-      lineas.push(`📍 Ruta de hoy: ${totalRuta} clientes`)
-      const muestra = rutaHoy!.slice(0, 5).map(c => `  • ${c.nombre_negocio}`)
-      lineas.push(...muestra)
-      if (totalRuta > 5) lineas.push(`  ... (+${totalRuta - 5} más)`)
-    } else {
-      lineas.push(`📍 Ruta de hoy: sin clientes asignados para ${diaHoy}`)
+    lineas.push(`📍 Clientes planificados: ${totalRuta || 0}`)
+
+    // Volumen planificado (cuota mensual de cajas)
+    type ProdPedido = { cajas?: number }
+    const cajasMes = (visitasMes ?? []).reduce((acc, v) => {
+      const prods = (v.productos_pedidos ?? []) as ProdPedido[]
+      return acc + prods.reduce((s, p) => s + (p.cajas || 0), 0)
+    }, 0)
+    const metaCajas = metaRow?.meta_cajas || 0
+    const diasRestantes = diasHabilesRestantesVE()
+    const restante = metaCajas - cajasMes
+    const volumenHoy = restante <= 0 ? 50 : Math.ceil(restante / diasRestantes)
+    lineas.push('')
+    lineas.push(`📦 Volumen planificado hoy: ${volumenHoy} cajas`)
+    lineas.push(`  (cuota ${metaCajas} · quedan ${diasRestantes} días hábiles)`)
+
+    // Cobros de cartera propia
+    type CobroRow = { monto: number; moneda: string; fecha_vencimiento: string; clientes?: { nombre_negocio: string } }
+    const cobros = (cobrosCartera ?? []) as unknown as CobroRow[]
+    const totalCobrar = cobros.reduce((a, c) => a + Number(c.monto), 0)
+    lineas.push('')
+    lineas.push(`💰 Cobros pendientes (mi cartera): ${cobros.length} · $${totalCobrar.toFixed(0)}`)
+
+    const focoCobro = cobros.slice(0, 6)
+    if (focoCobro.length > 0) {
+      lineas.push('')
+      lineas.push(`📌 Clientes foco de cobro hoy:`)
+      for (const c of focoCobro) {
+        lineas.push(`  • ${c.clientes?.nombre_negocio} — $${Number(c.monto).toFixed(0)}`)
+      }
     }
 
-    // Sin visitar
-    lineas.push('')
-    lineas.push(`⚠️ Sin visitar esta semana: ${sinVisitar?.length || 0}`)
+    // Productos foco del mes
+    if (productosFoco && productosFoco.length > 0) {
+      lineas.push('')
+      lineas.push(`🎯 Productos foco del mes:`)
+      for (const p of productosFoco) lineas.push(`  • ${p.nombre}`)
+    }
 
-    // Despachos
-    lineas.push('')
+    // Despachos (solo guías sin entregar, desde que se empezó a registrar en el CRM)
     type DespachoRow = { id: number; numero_guia: string; conductor_nombre: string; conductor_telefono: string; placa: string; fecha_guia: string; despacho_items: { estado: string }[] }
     const pendientes: DespachoRow[] = []
-    const completados: DespachoRow[] = []
     for (const d of (despachos as DespachoRow[] | null) ?? []) {
       const items = d.despacho_items ?? []
       if (items.length === 0) continue
       const tienePendiente = items.some(i => i.estado === 'pendiente')
       if (tienePendiente) pendientes.push(d)
-      else completados.push(d)
     }
 
+    lineas.push('')
     if (pendientes.length > 0) {
       lineas.push(`🚚 Despachos pendientes: ${pendientes.length}`)
       for (const d of pendientes) {
@@ -104,13 +171,6 @@ async function buildPayload() {
     } else {
       lineas.push(`🚚 Sin despachos pendientes`)
     }
-    for (const d of completados) {
-      lineas.push(`✅ Guía #${d.numero_guia} ya fue entregada completa`)
-    }
-
-    // Cobros
-    lineas.push('')
-    lineas.push(`💰 Cobros urgentes: ${cobros?.length || 0}`)
 
     return { title: '', body: lineas.join('\n') }
   }
@@ -153,9 +213,10 @@ export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url)
     const isTest = searchParams.get('test') === '1'
+    const forzarManana = searchParams.get('test') === '2'
     const payload = isTest
       ? { title: '✅ Prueba — ISOLA CRM', body: 'Las notificaciones están funcionando correctamente.' }
-      : await buildPayload()
+      : await buildPayload(forzarManana)
     if (!payload) return NextResponse.json({ ok: true, sent: 0 })
 
     const msg = payload.title ? `${payload.title}\n${payload.body}` : payload.body

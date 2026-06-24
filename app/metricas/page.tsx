@@ -10,7 +10,7 @@ export default function Metricas() {
   const [topCajas, setTopCajas] = useState<{ nombre: string; cajas: number }[]>([])
   const [meta, setMeta] = useState<any>(null)
   const [mes, setMes] = useState<{ monto: number; visitas: number; cobranza: number; visitas_efectivas: number; cajas: number }>({ monto: 0, visitas: 0, cobranza: 0, visitas_efectivas: 0, cajas: 0 })
-  const [metaForm, setMetaForm] = useState({ monto: '', visitas: '', cobranza: '', visitas_efectivas: '' })
+  const [metaForm, setMetaForm] = useState({ monto: '', visitas: '', cobranza: '', visitas_efectivas: '', cajas: '' })
   const [editMeta, setEditMeta] = useState(false)
   const [metasVar, setMetasVar] = useState<any[]>([])
   const [noVisitados, setNoVisitados] = useState<string[]>([])
@@ -134,7 +134,7 @@ export default function Metricas() {
   }, [])
 
   const guardarMeta = async () => {
-    const d = { periodo, tipo: 'mensual', meta_monto: +metaForm.monto, meta_visitas: +metaForm.visitas, meta_cobranza: +metaForm.cobranza, meta_visitas_efectivas: +metaForm.visitas_efectivas }
+    const d = { periodo, tipo: 'mensual', meta_monto: +metaForm.monto, meta_visitas: +metaForm.visitas, meta_cobranza: +metaForm.cobranza, meta_visitas_efectivas: +metaForm.visitas_efectivas, meta_cajas: +metaForm.cajas }
     if (meta) await supabase.from('metas').update(d).eq('id', meta.id)
     else await supabase.from('metas').insert(d)
     setMeta(d)
@@ -206,7 +206,7 @@ export default function Metricas() {
       <div className="bg-slate-900 rounded-xl p-4 border border-slate-800">
         <div className="flex items-center gap-2 mb-3">
           <h2 className="font-semibold">Meta del mes ({mesActual})</h2>
-          <button onClick={() => { setEditMeta(!editMeta); setMetaForm({ monto: String(meta?.meta_monto || ''), visitas: String(meta?.meta_visitas || ''), cobranza: String(meta?.meta_cobranza || ''), visitas_efectivas: String(meta?.meta_visitas_efectivas || '') }) }}
+          <button onClick={() => { setEditMeta(!editMeta); setMetaForm({ monto: String(meta?.meta_monto || ''), visitas: String(meta?.meta_visitas || ''), cobranza: String(meta?.meta_cobranza || ''), visitas_efectivas: String(meta?.meta_visitas_efectivas || ''), cajas: String(meta?.meta_cajas || '') }) }}
             className="ml-auto text-xs text-slate-400 hover:text-white bg-slate-800 px-2 py-1 rounded">
             {editMeta ? 'Cancelar' : 'Editar'}
           </button>
@@ -220,6 +220,8 @@ export default function Metricas() {
             <input type="number" placeholder="Meta cobranza USD" value={metaForm.cobranza} onChange={e => setMetaForm({ ...metaForm, cobranza: e.target.value })}
               className="flex-1 min-w-[100px] bg-slate-800 border border-slate-700 rounded px-3 py-1.5 text-sm" />
             <input type="number" placeholder="Meta v. efectivas" value={metaForm.visitas_efectivas} onChange={e => setMetaForm({ ...metaForm, visitas_efectivas: e.target.value })}
+              className="flex-1 min-w-[100px] bg-slate-800 border border-slate-700 rounded px-3 py-1.5 text-sm" />
+            <input type="number" placeholder="Meta cajas (cuota)" value={metaForm.cajas} onChange={e => setMetaForm({ ...metaForm, cajas: e.target.value })}
               className="flex-1 min-w-[100px] bg-slate-800 border border-slate-700 rounded px-3 py-1.5 text-sm" />
             <button onClick={guardarMeta} className="bg-violet-600 text-white px-3 py-1.5 rounded text-sm">OK</button>
           </div>
@@ -257,6 +259,18 @@ export default function Metricas() {
                 <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
                   <div className="h-full bg-green-600 rounded-full transition-all"
                     style={{ width: `${Math.min(mes.cobranza / meta.meta_cobranza * 100, 100)}%` }} />
+                </div>
+              </div>
+            )}
+            {meta.meta_cajas > 0 && (
+              <div>
+                <div className="flex justify-between text-sm mb-1">
+                  <span>Cuota de cajas del mes</span>
+                  <span className="text-pink-400">{mes.cajas} / {meta.meta_cajas}</span>
+                </div>
+                <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
+                  <div className="h-full bg-pink-600 rounded-full transition-all"
+                    style={{ width: `${Math.min(mes.cajas / meta.meta_cajas * 100, 100)}%` }} />
                 </div>
               </div>
             )}
