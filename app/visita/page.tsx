@@ -79,6 +79,7 @@ export default function RegistrarVisita() {
   const [cargandoHistorial, setCargandoHistorial] = useState(false)
   const [filtroFechaH, setFiltroFechaH] = useState(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}` })
   const [expandidoH, setExpandidoH] = useState<number | null>(null)
+  const [filtroResultado, setFiltroResultado] = useState<string>('todos')
   const [editVisita, setEditVisita] = useState<Visita | null>(null)
   const [editForm, setEditForm] = useState({ resultado: '', resultado_otro: '', monto_pedido: 0, notas_visita: '', dias_credito: 21, nro_factura: '' })
   const [editCantidades, setEditCantidades] = useState<Record<string, number>>({})
@@ -580,13 +581,38 @@ export default function RegistrarVisita() {
             <input type="date" value={filtroFechaH} onChange={e => setFiltroFechaH(e.target.value)}
               className="w-full mt-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm" />
           </label>
+
+          {historial.length > 0 && (
+            <div className="flex gap-1.5 flex-wrap">
+              {([
+                ['todos', 'Todos'],
+                ['visita_efectiva', '✅ Efectiva'],
+                ['cliente_con_stock', '📦 Con stock'],
+                ['cliente_cerrado', '🔒 Cerrado'],
+                ['encargado_no_encontrado', '🚪 Ausente'],
+                ['factura_pendiente', '📄 Fact. pendiente'],
+              ] as [string, string][]).map(([val, label]) => {
+                const count = val === 'todos' ? historial.length : historial.filter(v => v.resultado === val).length
+                if (val !== 'todos' && count === 0) return null
+                return (
+                  <button key={val} onClick={() => setFiltroResultado(val)}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${filtroResultado === val ? 'bg-violet-600 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}>
+                    {label} {count > 0 && <span className="opacity-70">({count})</span>}
+                  </button>
+                )
+              })}
+            </div>
+          )}
+
           {cargandoHistorial
             ? <p className="text-slate-400 text-sm text-center py-4">Cargando...</p>
             : historial.length === 0
               ? <p className="text-slate-400 bg-slate-900 rounded-xl p-4 text-sm">No hay visitas registradas para esta fecha.</p>
-              : <div className="space-y-2">
-                  <p className="text-xs text-slate-500">{historial.length} visita{historial.length !== 1 ? 's' : ''}</p>
-                  {historial.map(v => {
+              : (() => {
+                  const visibleH = filtroResultado === 'todos' ? historial : historial.filter(v => v.resultado === filtroResultado)
+                  return <div className="space-y-2">
+                  <p className="text-xs text-slate-500">{visibleH.length} visita{visibleH.length !== 1 ? 's' : ''}{filtroResultado !== 'todos' ? ` · de ${historial.length} total` : ''}</p>
+                  {visibleH.map(v => {
                     const rLabel = RESULTADO_LABEL[v.resultado] || v.resultado
                     const rColor = RESULTADO_COLOR[v.resultado] || 'bg-slate-800 text-slate-400'
                     const lineasV = (v.productos_pedidos || []) as LineaPedido[]
@@ -651,6 +677,7 @@ export default function RegistrarVisita() {
                     )
                   })}
                 </div>
+                })()
           }
         </div>
       )}
