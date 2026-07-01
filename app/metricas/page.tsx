@@ -20,20 +20,37 @@ export default function Metricas() {
   const [expandedMeta, setExpandedMeta] = useState<number | null>(null)
   const [verTodasCajas, setVerTodasCajas] = useState(false)
   const [varForm, setVarForm] = useState({ nombre: '', tipo: 'captaciones', meta_valor: '', producto_keyword: '' })
-  const periodo = new Date().toISOString().slice(0, 7)
+  const hoyCaracas = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Caracas' })
+  const [periodo, setPeriodo] = useState(() => hoyCaracas.slice(0, 7))
+  const mesActualStr = hoyCaracas.slice(0, 7)
+
+  const navegarMes = (delta: number) => {
+    const [y, m] = periodo.split('-').map(Number)
+    const d = new Date(y, m - 1 + delta, 1)
+    setPeriodo(d.toISOString().slice(0, 7))
+  }
 
   useEffect(() => {
-    const hace7 = new Date(Date.now() - 6 * 864e5).toISOString().split('T')[0]
-    const hace30 = new Date(Date.now() - 29 * 864e5).toISOString().split('T')[0]
+    setSemana(null)
+    setHistorial([])
+    setTop([])
+    setTopCajas([])
+    setMeta(null)
+    setMes({ monto: 0, visitas: 0, cobranza: 0, visitas_efectivas: 0, cajas: 0 })
+    setMetasVar([])
+    setNoVisitados([])
 
     const inicioMes = `${periodo}-01`
+    const [y, m] = periodo.split('-').map(Number)
+    const finMes = new Date(y, m, 0).toISOString().split('T')[0]
+    const hace30 = new Date(new Date(finMes).getTime() - 29 * 864e5).toISOString().split('T')[0]
 
     Promise.all([
       supabase.from('visitas').select('resultado, monto_pedido, cliente_id').gte('fecha', inicioMes),
-      supabase.from('visitas').select('fecha, resultado, monto_pedido').gte('fecha', hace30).order('fecha'),
+      supabase.from('visitas').select('fecha, resultado, monto_pedido').gte('fecha', hace30).lte('fecha', finMes).order('fecha'),
       supabase.from('metas').select('*').eq('periodo', periodo).eq('tipo', 'mensual').maybeSingle(),
       supabase.from('visitas').select('cliente_id, monto_pedido, resultado, clientes(nombre_negocio)')
-        .eq('resultado', 'visita_efectiva').gt('monto_pedido', 0).gte('fecha', hace30),
+        .eq('resultado', 'visita_efectiva').gt('monto_pedido', 0).gte('fecha', hace30).lte('fecha', finMes),
       supabase.from('visitas').select('resultado, monto_pedido, cliente_id, productos_pedidos, clientes(nombre_negocio)').gte('fecha', inicioMes),
       supabase.from('cobros').select('monto').eq('estado', 'pagado').gte('fecha_pago', inicioMes),
       supabase.from('metas_variables').select('*').eq('periodo', periodo),
@@ -131,7 +148,7 @@ export default function Metricas() {
       })
       setMetasVar(calculadas)
     })
-  }, [])
+  }, [periodo])
 
   const guardarMeta = async () => {
     const d = { periodo, tipo: 'mensual', meta_monto: +metaForm.monto, meta_visitas: +metaForm.visitas, meta_cobranza: +metaForm.cobranza, meta_visitas_efectivas: +metaForm.visitas_efectivas, meta_cajas: +metaForm.cajas }
@@ -159,11 +176,17 @@ export default function Metricas() {
     setMetasVar(prev => prev.filter((m: any) => m.id !== id))
   }
 
-  const mesActual = new Date().toISOString().slice(0, 7)
-
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-violet-400">Mis Métricas</h1>
+      <div className="flex items-center gap-3">
+        <h1 className="text-2xl font-bold text-violet-400">Mis Métricas</h1>
+        <div className="ml-auto flex items-center gap-2 bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5">
+          <button onClick={() => navegarMes(-1)} className="text-slate-400 hover:text-white text-lg leading-none">‹</button>
+          <span className="text-sm font-medium w-20 text-center">{periodo}</span>
+          <button onClick={() => navegarMes(1)} disabled={periodo >= mesActualStr}
+            className="text-slate-400 hover:text-white disabled:opacity-30 text-lg leading-none">›</button>
+        </div>
+      </div>
 
       {/* Semana */}
       {semana && (
@@ -205,7 +228,7 @@ export default function Metricas() {
       {/* Meta mensual */}
       <div className="bg-slate-900 rounded-xl p-4 border border-slate-800">
         <div className="flex items-center gap-2 mb-3">
-          <h2 className="font-semibold">Meta del mes ({mesActual})</h2>
+          <h2 className="font-semibold">Meta del mes ({periodo})</h2>
           <button onClick={() => { setEditMeta(!editMeta); setMetaForm({ monto: String(meta?.meta_monto || ''), visitas: String(meta?.meta_visitas || ''), cobranza: String(meta?.meta_cobranza || ''), visitas_efectivas: String(meta?.meta_visitas_efectivas || ''), cajas: String(meta?.meta_cajas || '') }) }}
             className="ml-auto text-xs text-slate-400 hover:text-white bg-slate-800 px-2 py-1 rounded">
             {editMeta ? 'Cancelar' : 'Editar'}
@@ -312,7 +335,7 @@ export default function Metricas() {
       {/* Metas variables del supervisor */}
       <div className="bg-slate-900 rounded-xl p-4 border border-slate-800">
         <div className="flex items-center gap-2 mb-3">
-          <h2 className="font-semibold">Metas del supervisor ({mesActual})</h2>
+          <h2 className="font-semibold">Metas del supervisor ({periodo})</h2>
           <button onClick={() => setAddingVar(v => !v)}
             className="ml-auto text-xs text-slate-400 hover:text-white bg-slate-800 px-2 py-1 rounded">
             {addingVar ? 'Cancelar' : '+ Agregar'}
