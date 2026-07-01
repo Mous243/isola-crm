@@ -9,10 +9,33 @@ function sumarDias(fechaStr: string, dias: number) {
   d.setDate(d.getDate() + dias)
   return d.toISOString().split('T')[0]
 }
-function hoy() { return new Date().toISOString().split('T')[0] }
+function hoy() { return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Caracas' }) }
+
+type Filtro = 'todos' | 'hoy' | 'semana' | 'mes'
+
+function filtrarDespachos(despachos: Despacho[], filtro: Filtro): Despacho[] {
+  const h = hoy()
+  if (filtro === 'hoy') return despachos.filter(d => d.fecha_guia === h)
+  if (filtro === 'semana') {
+    const fecha = new Date(h + 'T00:00:00')
+    const lunes = new Date(fecha)
+    lunes.setDate(fecha.getDate() - ((fecha.getDay() + 6) % 7))
+    const domingo = new Date(lunes)
+    domingo.setDate(lunes.getDate() + 6)
+    const desde = lunes.toISOString().split('T')[0]
+    const hasta = domingo.toISOString().split('T')[0]
+    return despachos.filter(d => d.fecha_guia >= desde && d.fecha_guia <= hasta)
+  }
+  if (filtro === 'mes') {
+    const mes = h.slice(0, 7)
+    return despachos.filter(d => d.fecha_guia.startsWith(mes))
+  }
+  return despachos
+}
 
 export default function Despachos() {
   const [despachos, setDespachos] = useState<Despacho[]>([])
+  const [filtro, setFiltro] = useState<Filtro>('mes')
   const [items, setItems] = useState<DespachoItem[]>([])
   const [expandido, setExpandido] = useState<number | null>(null)
   const [modal, setModal] = useState<DespachoItem | null>(null)
@@ -107,13 +130,22 @@ export default function Despachos() {
         Guías de despacho con tus clientes. Marca la entrega real para que el crédito ({DIAS_CREDITO} días) cuente desde ese día.
       </p>
 
-      {despachos.length === 0 && (
+      <div className="flex gap-2 flex-wrap">
+        {([['hoy', 'Hoy'], ['semana', 'Esta semana'], ['mes', 'Este mes'], ['todos', 'Todos']] as [Filtro, string][]).map(([val, label]) => (
+          <button key={val} onClick={() => setFiltro(val)}
+            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${filtro === val ? 'bg-violet-600 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {filtrarDespachos(despachos, filtro).length === 0 && (
         <div className="bg-slate-900 rounded-xl p-6 border border-slate-800 text-center text-slate-400 text-sm">
-          Aún no hay guías cargadas. Envíame el PDF cada noche y yo la registro aquí.
+          {filtro === 'todos' ? 'Aún no hay guías cargadas. Envíame el PDF cada noche y yo la registro aquí.' : `No hay guías para ${filtro === 'hoy' ? 'hoy' : filtro === 'semana' ? 'esta semana' : 'este mes'}.`}
         </div>
       )}
 
-      {despachos.map(d => {
+      {filtrarDespachos(despachos, filtro).map(d => {
         const its = itemsDe(d.id)
         const entregados = its.filter(i => i.estado === 'entregado').length
         return (
