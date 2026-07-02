@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { supabase, type Despacho, type DespachoItem, type Cobro, type Visita } from '@/lib/supabase'
 
 const DIAS_CREDITO = 10
+const CUTOFF_PEDIDOS_PENDIENTES = '2026-07-01'
 
 function sumarDias(fechaStr: string, dias: number) {
   const d = new Date(fechaStr + 'T00:00:00')
@@ -10,11 +11,6 @@ function sumarDias(fechaStr: string, dias: number) {
   return d.toISOString().split('T')[0]
 }
 function hoy() { return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Caracas' }) }
-function diasAtras(n: number) {
-  const d = new Date(hoy() + 'T00:00:00')
-  d.setDate(d.getDate() - n)
-  return d.toISOString().split('T')[0]
-}
 
 type Filtro = 'todos' | 'hoy' | 'semana' | 'mes'
 
@@ -73,7 +69,7 @@ export default function Despachos() {
     const { data: vis } = await supabase.from('visitas')
       .select('*, clientes(nombre_negocio, propietario)')
       .eq('resultado', 'visita_efectiva').gt('monto_pedido', 0)
-      .gte('fecha', diasAtras(30)).order('fecha', { ascending: false })
+      .gte('fecha', CUTOFF_PEDIDOS_PENDIENTES).order('fecha', { ascending: false })
     const fechaGuiaPorDespacho = new Map((d || []).map(x => [x.id, x.fecha_guia]))
     const pendientes = (vis || []).filter(v => !(it || []).some(i =>
       i.cliente_id === v.cliente_id && (fechaGuiaPorDespacho.get(i.despacho_id) ?? '') >= v.fecha
