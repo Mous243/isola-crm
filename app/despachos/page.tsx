@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { supabase, type Despacho, type DespachoItem, type Cobro } from '@/lib/supabase'
+import { supabase, type Despacho, type DespachoItem, type Cobro, type Visita } from '@/lib/supabase'
 
 const DIAS_CREDITO = 10
 
@@ -10,6 +10,11 @@ function sumarDias(fechaStr: string, dias: number) {
   return d.toISOString().split('T')[0]
 }
 function hoy() { return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Caracas' }) }
+function diasAtras(n: number) {
+  const d = new Date(hoy() + 'T00:00:00')
+  d.setDate(d.getDate() - n)
+  return d.toISOString().split('T')[0]
+}
 
 type Filtro = 'todos' | 'hoy' | 'semana' | 'mes'
 
@@ -48,6 +53,7 @@ export default function Despachos() {
   const [motivoDev, setMotivoDev] = useState('')
   const [procesandoDev, setProcesandoDev] = useState(false)
   const [copiadoId, setCopiadoId] = useState<number | null>(null)
+  const [pedidosPendientes, setPedidosPendientes] = useState<Visita[]>([])
 
   const copiarRutero = async (d: Despacho) => {
     const url = `https://isola-crm-web.vercel.app/r/${d.numero_guia}`
@@ -63,6 +69,16 @@ export default function Despachos() {
     const { data: it } = await supabase.from('despacho_items')
       .select('*, clientes(nombre_negocio, propietario, telefono)').order('id')
     setItems(it || [])
+
+    const { data: vis } = await supabase.from('visitas')
+      .select('*, clientes(nombre_negocio, propietario)')
+      .eq('resultado', 'visita_efectiva').gt('monto_pedido', 0)
+      .gte('fecha', diasAtras(30)).order('fecha', { ascending: false })
+    const fechaGuiaPorDespacho = new Map((d || []).map(x => [x.id, x.fecha_guia]))
+    const pendientes = (vis || []).filter(v => !(it || []).some(i =>
+      i.cliente_id === v.cliente_id && (fechaGuiaPorDespacho.get(i.despacho_id) ?? '') >= v.fecha
+    ))
+    setPedidosPendientes(pendientes)
   }
   useEffect(() => { cargar() }, [])
 
@@ -129,6 +145,21 @@ export default function Despachos() {
       <p className="text-sm text-slate-400">
         Guías de despacho con tus clientes. Marca la entrega real para que el crédito ({DIAS_CREDITO} días) cuente desde ese día.
       </p>
+
+      {pedidosPendientes.length > 0 && (
+        <div className="bg-yellow-950/30 rounded-xl p-4 border border-yellow-900/50 space-y-2">
+          <p className="text-sm font-semibold text-yellow-400">⏳ Pedidos sin despachar aún ({pedidosPendientes.length})</p>
+          <p className="text-xs text-slate-400">Tomaste el pedido pero el cliente todavía no aparece en ninguna guía de despacho.</p>
+          <div className="space-y-1.5 mt-2">
+            {pedidosPendientes.map(v => (
+              <div key={v.id} className="flex items-center justify-between bg-slate-900/60 rounded-lg px-3 py-2 text-sm">
+                <span className="truncate">{(v.clientes as any)?.nombre_negocio}</span>
+                <span className="text-xs text-slate-400 shrink-0 ml-2">{v.fecha} · {v.moneda} {Number(v.monto_pedido).toFixed(2)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="flex gap-2 flex-wrap">
         {([['hoy', 'Hoy'], ['semana', 'Esta semana'], ['mes', 'Este mes'], ['todos', 'Todos']] as [Filtro, string][]).map(([val, label]) => (
