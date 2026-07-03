@@ -264,11 +264,12 @@ export default function RegistrarVisita() {
   const guardar = async () => {
     if (!form.cliente_id) return alert('Selecciona un cliente')
     if (form.resultado === 'otro' && !form.resultado_otro.trim()) return alert('Escribe el caso puntual')
-    if (form.nro_factura && await facturaDuplicada(form.nro_factura)) {
-      return alert(`La factura ${form.nro_factura} ya está registrada. Verifica el número.`)
+    const resultadoFinal = form.resultado === 'otro' ? form.resultado_otro.trim() : form.resultado
+    const facturaFinal = resultadoFinal === 'visita_efectiva' ? form.nro_factura : ''
+    if (facturaFinal && await facturaDuplicada(facturaFinal)) {
+      return alert(`La factura ${facturaFinal} ya está registrada. Verifica el número.`)
     }
     setSaving(true)
-    const resultadoFinal = form.resultado === 'otro' ? form.resultado_otro.trim() : form.resultado
     const montoFinal = form.monto_manual || totalCalculado
     await supabase.from('visitas').insert({
       cliente_id: +form.cliente_id,
@@ -279,7 +280,7 @@ export default function RegistrarVisita() {
       productos_pedidos: lineas.length > 0 ? lineas : [],
       notas_visita: form.notas_visita,
       dias_credito: form.dias_credito,
-      nro_factura: form.nro_factura || null,
+      nro_factura: facturaFinal || null,
       nro_documento_isola: form.nro_documento_isola || null,
     })
     if (form.dias_credito > 0 && montoFinal > 0) {
@@ -290,7 +291,7 @@ export default function RegistrarVisita() {
         cliente_id: +form.cliente_id,
         monto: montoFinal,
         moneda: form.moneda,
-        descripcion: form.nro_factura || `Pedido ${form.fecha}`,
+        descripcion: facturaFinal || `Pedido ${form.fecha}`,
         nro_documento_isola: form.nro_documento_isola || null,
         fecha_emision: form.fecha,
         fecha_vencimiento: fechaVenc,
@@ -302,7 +303,7 @@ export default function RegistrarVisita() {
     if (resultadoFinal === 'visita_efectiva' && montoFinal > 0 && clienteSel?.telefono) {
       setConfirmacionWA({
         telefono: clienteSel.telefono,
-        link: waConfirmacionPedido(clienteSel, montoFinal, form.moneda, lineas, form.nro_factura || null),
+        link: waConfirmacionPedido(clienteSel, montoFinal, form.moneda, lineas, facturaFinal || null),
       })
     } else {
       setConfirmacionWA(null)
@@ -315,8 +316,8 @@ export default function RegistrarVisita() {
     const idxActual = clientes.findIndex(c => String(c.id) === form.cliente_id)
     const siguiente = clientes[idxActual + 1] || null
     setSiguienteCliente(siguiente)
-    if (form.nro_factura) {
-      setProximaFactura(String(parseInt(form.nro_factura, 10) + 1))
+    if (facturaFinal) {
+      setProximaFactura(String(parseInt(facturaFinal, 10) + 1))
     }
     setForm(f => ({ ...f, notas_visita: '', monto_manual: 0, resultado: 'visita_efectiva', resultado_otro: '', nro_factura: '', nro_documento_isola: '' }))
   }
@@ -354,11 +355,12 @@ export default function RegistrarVisita() {
 
   const guardarEdicion = async () => {
     if (!editVisita) return
-    if (editForm.nro_factura && await facturaDuplicada(editForm.nro_factura, editVisita.id)) {
-      return alert(`La factura ${editForm.nro_factura} ya está registrada en otra visita.`)
+    const resultadoFinal = editForm.resultado === 'otro' ? editForm.resultado_otro.trim() : editForm.resultado
+    const facturaFinal = resultadoFinal === 'visita_efectiva' ? editForm.nro_factura : ''
+    if (facturaFinal && await facturaDuplicada(facturaFinal, editVisita.id)) {
+      return alert(`La factura ${facturaFinal} ya está registrada en otra visita.`)
     }
     setSavingEdit(true)
-    const resultadoFinal = editForm.resultado === 'otro' ? editForm.resultado_otro.trim() : editForm.resultado
     const editLineas: LineaPedido[] = productos
       .filter(p => (editCantidades[p.nombre] || 0) > 0)
       .map(p => ({ nombre: p.nombre, codigo: p.codigo, cajas: editCantidades[p.nombre], precio_caja: p.precio_caja || 0, subtotal: editCantidades[p.nombre] * (p.precio_caja || 0), imagen_url: (p as Producto & { imagen_url?: string }).imagen_url }))
@@ -369,7 +371,7 @@ export default function RegistrarVisita() {
       productos_pedidos: editLineas,
       notas_visita: editForm.notas_visita,
       dias_credito: editForm.dias_credito,
-      nro_factura: editForm.nro_factura || null,
+      nro_factura: facturaFinal || null,
     }).eq('id', editVisita.id)
     setSavingEdit(false)
     setEditVisita(null)
