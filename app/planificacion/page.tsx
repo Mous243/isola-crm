@@ -24,6 +24,24 @@ export default function Planificacion() {
   const actual = delTipo[0]
   const historial = delTipo.slice(1)
 
+  const toggleItem = async (plan: PlanTrabajo, seccionIdx: number, itemIdx: number) => {
+    const item = plan.contenido.secciones[seccionIdx].items?.[itemIdx]
+    if (!item || typeof item === 'string') return
+    const nuevoContenido: PlanTrabajo['contenido'] = JSON.parse(JSON.stringify(plan.contenido))
+    const nuevoItem = nuevoContenido.secciones[seccionIdx].items![itemIdx]
+    if (typeof nuevoItem === 'string') return
+    nuevoItem.hecho = !nuevoItem.hecho
+    setPlanes(prev => prev.map(p => p.id === plan.id ? { ...p, contenido: nuevoContenido } : p))
+    await supabase.from('planes_trabajo').update({ contenido: nuevoContenido }).eq('id', plan.id)
+  }
+
+  const progreso = (p: PlanTrabajo) => {
+    const items = p.contenido?.secciones?.flatMap(s => s.items || []) || []
+    const checkables = items.filter((it): it is { texto: string; hecho?: boolean } => typeof it !== 'string')
+    if (checkables.length === 0) return null
+    return { hechos: checkables.filter(it => it.hecho).length, total: checkables.length }
+  }
+
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-bold text-violet-400">🎯 Planificación</h1>
@@ -52,6 +70,18 @@ export default function Planificacion() {
             <p className="font-semibold text-base">{actual.titulo}</p>
             <p className="text-xs text-slate-500 mt-0.5">{actual.fecha_inicio} → {actual.fecha_fin}</p>
             {actual.resumen && <p className="text-sm text-slate-300 mt-2">{actual.resumen}</p>}
+            {progreso(actual) && (
+              <div className="mt-3">
+                <div className="flex justify-between text-xs text-slate-400 mb-1">
+                  <span>Progreso</span>
+                  <span>{progreso(actual)!.hechos}/{progreso(actual)!.total}</span>
+                </div>
+                <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                  <div className="h-full bg-violet-500 rounded-full transition-all"
+                    style={{ width: `${(progreso(actual)!.hechos / progreso(actual)!.total) * 100}%` }} />
+                </div>
+              </div>
+            )}
           </div>
 
           {actual.contexto?.situacion_pais && (
@@ -85,9 +115,19 @@ export default function Planificacion() {
               {s.texto && <p className="text-sm text-slate-400 whitespace-pre-line">{s.texto}</p>}
               {s.items && (
                 <ul className="space-y-1">
-                  {s.items.map((it, j) => (
+                  {s.items.map((it, j) => typeof it === 'string' ? (
                     <li key={j} className="text-sm text-slate-400 flex gap-2">
                       <span className="text-slate-600 shrink-0">→</span>{it}
+                    </li>
+                  ) : (
+                    <li key={j}>
+                      <button onClick={() => toggleItem(actual, i, j)}
+                        className="w-full flex items-start gap-2 text-left text-sm py-0.5 group">
+                        <span className={`shrink-0 mt-0.5 w-4 h-4 rounded border flex items-center justify-center text-[10px] ${it.hecho ? 'bg-violet-600 border-violet-600' : 'border-slate-600 group-hover:border-slate-400'}`}>
+                          {it.hecho && '✓'}
+                        </span>
+                        <span className={it.hecho ? 'text-slate-600 line-through' : 'text-slate-300'}>{it.texto}</span>
+                      </button>
                     </li>
                   ))}
                 </ul>
@@ -125,7 +165,11 @@ export default function Planificacion() {
                       {s.texto && <p className="text-sm text-slate-400 whitespace-pre-line">{s.texto}</p>}
                       {s.items && (
                         <ul className="space-y-1">
-                          {s.items.map((it, j) => <li key={j} className="text-sm text-slate-400">→ {it}</li>)}
+                          {s.items.map((it, j) => (
+                            <li key={j} className={`text-sm ${typeof it !== 'string' && it.hecho ? 'text-slate-600 line-through' : 'text-slate-400'}`}>
+                              {typeof it !== 'string' && it.hecho ? '✓ ' : '→ '}{typeof it === 'string' ? it : it.texto}
+                            </li>
+                          ))}
                         </ul>
                       )}
                     </div>

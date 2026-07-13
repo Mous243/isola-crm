@@ -95,7 +95,7 @@ export type PlanTrabajo = {
   fecha_fin: string
   titulo: string
   resumen?: string
-  contenido: { secciones: { titulo: string; texto?: string; items?: string[] }[] }
+  contenido: { secciones: { titulo: string; texto?: string; items?: (string | { texto: string; hecho?: boolean })[] }[] }
   contexto?: { situacion_pais?: string; festividades?: { fecha: string; nombre: string; impacto?: string }[]; vacaciones_escolares?: string; fuentes?: string[] }
   enviado_telegram?: boolean
   created_at?: string
