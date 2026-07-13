@@ -88,6 +88,19 @@ export type DespachoItem = {
   clientes?: { nombre_negocio: string; propietario?: string; telefono?: string }
 }
 
+export type PlanTrabajo = {
+  id: number
+  tipo: 'mensual' | 'semanal' | 'diario'
+  fecha_inicio: string
+  fecha_fin: string
+  titulo: string
+  resumen?: string
+  contenido: { secciones: { titulo: string; texto?: string; items?: string[] }[] }
+  contexto?: { situacion_pais?: string; festividades?: { fecha: string; nombre: string; impacto?: string }[]; vacaciones_escolares?: string; fuentes?: string[] }
+  enviado_telegram?: boolean
+  created_at?: string
+}
+
 export type Producto = {
   id: number
   codigo?: string
