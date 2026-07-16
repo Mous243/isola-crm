@@ -69,6 +69,7 @@ export default function Despachos() {
     const { data: vis } = await supabase.from('visitas')
       .select('*, clientes(nombre_negocio, propietario)')
       .eq('resultado', 'visita_efectiva').gt('monto_pedido', 0)
+      .eq('confirmado_sin_guia', false)
       .gte('fecha', CUTOFF_PEDIDOS_PENDIENTES).order('fecha', { ascending: false })
     const fechaGuiaPorDespacho = new Map((d || []).map(x => [x.id, x.fecha_guia]))
     const pendientes = (vis || []).filter(v => !(it || []).some(i =>
@@ -77,6 +78,11 @@ export default function Despachos() {
     setPedidosPendientes(pendientes)
   }
   useEffect(() => { cargar() }, [])
+
+  const confirmarSinGuia = async (visitaId: number) => {
+    await supabase.from('visitas').update({ confirmado_sin_guia: true }).eq('id', visitaId)
+    setPedidosPendientes(prev => prev.filter(v => v.id !== visitaId))
+  }
 
   const abrirModal = async (item: DespachoItem) => {
     setModal(item)
@@ -148,9 +154,15 @@ export default function Despachos() {
           <p className="text-xs text-slate-400">Tomaste el pedido pero el cliente todavía no aparece en ninguna guía de despacho.</p>
           <div className="space-y-1.5 mt-2">
             {pedidosPendientes.map(v => (
-              <div key={v.id} className="flex items-center justify-between bg-slate-900/60 rounded-lg px-3 py-2 text-sm">
-                <span className="truncate">{(v.clientes as any)?.nombre_negocio}</span>
-                <span className="text-xs text-slate-400 shrink-0 ml-2">{v.fecha} · {v.moneda} {Number(v.monto_pedido).toFixed(2)}</span>
+              <div key={v.id} className="flex items-center justify-between gap-2 bg-slate-900/60 rounded-lg px-3 py-2 text-sm">
+                <div className="min-w-0">
+                  <p className="truncate">{(v.clientes as any)?.nombre_negocio}</p>
+                  <p className="text-xs text-slate-400">{v.fecha} · {v.moneda} {Number(v.monto_pedido).toFixed(2)}</p>
+                </div>
+                <button onClick={() => confirmarSinGuia(v.id)}
+                  className="shrink-0 bg-green-800/50 hover:bg-green-700/50 text-green-400 px-2.5 py-1.5 rounded-lg text-xs">
+                  ✅ Confirmar
+                </button>
               </div>
             ))}
           </div>

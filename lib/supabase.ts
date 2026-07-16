@@ -45,6 +45,7 @@ export type Visita = {
   foto_url?: string
   dias_credito?: number
   nro_factura?: string
+  confirmado_sin_guia?: boolean
   created_at?: string
   clientes?: { nombre_negocio: string; propietario?: string }
 }
