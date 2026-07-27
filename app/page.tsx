@@ -7,10 +7,13 @@ type Stats = { total: number; con_pedido: number; sin_pedido: number; monto: num
 
 function waRecordatorio(c: any) {
   const cl = c.clientes
-  const nombre = cl?.propietario || cl?.nombre_negocio || ''
+  const negocio = cl?.nombre_negocio || ''
+  const saludo = cl?.propietario ? `${cl.propietario} (${negocio})` : negocio
   const dias = Math.ceil((new Date(c.fecha_vencimiento).getTime() - Date.now()) / 864e5)
-  const cuando = dias <= 0 ? `que venció el ${c.fecha_vencimiento}` : `con vencimiento el ${c.fecha_vencimiento} (en ${dias}d)`
-  const msg = `Hola ${nombre}, esperamos que todo marche bien. Le recordamos que tiene una factura pendiente por ${c.moneda} ${Number(c.monto).toFixed(2)}, ${cuando}. Quedamos atentos para coordinar el pago o resolver cualquier duda. Saludos cordiales — Guaramato, ISOLA`
+  const cuando = dias <= 0
+    ? `Venció: ${c.fecha_vencimiento} (hace ${Math.abs(dias)} día${Math.abs(dias) === 1 ? '' : 's'})`
+    : `Vence: ${c.fecha_vencimiento} (en ${dias} día${dias === 1 ? '' : 's'})`
+  const msg = `Hola ${saludo} 👋\n\nLe recordamos que tiene una factura pendiente:\n\n💵 Monto: ${c.moneda} ${Number(c.monto).toFixed(2)}\n📅 ${cuando}\n\n¿Podemos coordinar el pago? Quedamos atentos.\n\nSaludos,\nDaniel Guaramato — ISOLA Foods`
   return `https://wa.me/${(cl?.telefono || '').replace('+', '')}?text=${encodeURIComponent(msg)}`
 }
 
