@@ -14,6 +14,7 @@ function waRecordatorio(c: any) {
     ? `Venció: ${c.fecha_vencimiento} (hace ${Math.abs(dias)} día${Math.abs(dias) === 1 ? '' : 's'})`
     : `Vence: ${c.fecha_vencimiento} (en ${dias} día${dias === 1 ? '' : 's'})`
   const msg = `Hola ${saludo} 👋\n\nLe recordamos que tiene una factura pendiente:\n\n💵 Monto: ${c.moneda} ${Number(c.monto).toFixed(2)}\n📅 ${cuando}\n\n¿Podemos coordinar el pago? Quedamos atentos.\n\nSaludos,\nDaniel Guaramato — ISOLA Foods`
+    .replace(/&/g, 'y') // el "&" literal corta el link al abrirlo en algunas apps
   return `https://wa.me/${(cl?.telefono || '').replace('+', '')}?text=${encodeURIComponent(msg)}`
 }
 
