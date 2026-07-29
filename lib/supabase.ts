@@ -62,8 +62,9 @@ export type Cobro = {
   estado?: string
   origen?: string
   nro_documento_isola?: string
+  fecha_pago?: string
   created_at?: string
-  clientes?: { nombre_negocio: string; propietario?: string; telefono?: string; codigo_cliente?: string }
+  clientes?: { nombre_negocio: string; propietario?: string; telefono?: string; codigo_cliente?: string; zona?: string }
 }
 
 export type Despacho = {

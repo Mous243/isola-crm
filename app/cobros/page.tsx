@@ -3,18 +3,27 @@ import { useEffect, useState } from 'react'
 import { supabase, type Cobro, type Cliente } from '@/lib/supabase'
 
 const DIAS_CREDITO = 10
+const DIAS_LIMITE = 21 // tope de antigüedad que se controla para el cierre de mes
 function hoy() { return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Caracas' }) }
 function sumarDias(fechaStr: string, dias: number) {
   const d = new Date(fechaStr + 'T00:00:00')
   d.setDate(d.getDate() + dias)
   return d.toISOString().split('T')[0]
 }
+// último día del mes en curso (hora Venezuela)
+function finDeMes() {
+  const [a, m] = hoy().split('-').map(Number)
+  return new Date(a, m, 0).toLocaleDateString('en-CA')
+}
+function diasEntre(desde: string, hasta: string) {
+  return Math.round((new Date(hasta + 'T00:00:00').getTime() - new Date(desde + 'T00:00:00').getTime()) / 864e5)
+}
 
 export default function Cobros() {
   const [cobros, setCobros] = useState<Cobro[]>([])
   const [clientes, setClientes] = useState<Cliente[]>([])
   const [filtroEstado, setFiltroEstado] = useState('pendiente')
-  const [tab, setTab] = useState<'lista' | 'nuevo'>('lista')
+  const [tab, setTab] = useState<'lista' | 'nuevo' | 'cierre'>('lista')
   const [form, setForm] = useState({
     cliente_id: '', monto: '', moneda: 'USD', descripcion: '',
     fecha_emision: new Date().toISOString().split('T')[0],
@@ -42,6 +51,20 @@ export default function Cobros() {
     setCobros(data || [])
   }
   useEffect(() => { cargar() }, [filtroEstado])
+
+  // ── Cierre de mes: solo lo que sigue debiendo (al marcar pagado desaparece) ──
+  const [cierre, setCierre] = useState<Cobro[]>([])
+  const [cargandoCierre, setCargandoCierre] = useState(false)
+  const cargarCierre = async () => {
+    setCargandoCierre(true)
+    const { data } = await supabase.from('cobros')
+      .select('*, clientes(nombre_negocio, propietario, telefono, zona, codigo_cliente)')
+      .in('estado', ['pendiente', 'parcial'])
+      .order('fecha_emision')
+    setCierre(data || [])
+    setCargandoCierre(false)
+  }
+  useEffect(() => { if (tab === 'cierre') cargarCierre() }, [tab])
   useEffect(() => {
     supabase.from('clientes').select('id, nombre_negocio').in('status', ['activo', 'nuevo']).order('nombre_negocio')
       .then(({ data }) => {
@@ -60,6 +83,7 @@ export default function Cobros() {
     setGuardandoPago(true)
     await supabase.from('cobros').update({ estado: 'pagado', fecha_pago: fechaPagoInput }).eq('id', pagoModal.id)
     setCobros(prev => prev.map(c => c.id === pagoModal.id ? { ...c, estado: 'pagado', fecha_pago: fechaPagoInput } as any : c))
+    setCierre(prev => prev.filter(c => c.id !== pagoModal.id)) // sale del cierre de mes al cobrarse
     setGuardandoPago(false)
     setPagoModal(null)
   }
@@ -159,12 +183,52 @@ export default function Cobros() {
     return `https://wa.me/${(cl?.telefono || '').replace('+', '')}?text=${encodeURIComponent(msg)}`
   }
 
+  // ── Agrupación para el cierre de mes ────────────────────────────────────────
+  const HOY = hoy(), FIN = finDeMes()
+  const baseFecha = (c: Cobro) => c.fecha_emision || c.fecha_vencimiento
+  type Fila = { clienteId: number; nombre: string; telefono: string; zona: string; total: number; diasHoy: number; diasFin: number; docs: Cobro[] }
+
+  const agrupar = (lista: Cobro[]): Fila[] => {
+    const m = new Map<number, Fila>()
+    for (const c of lista) {
+      const cl = c.clientes as any
+      const f: Fila = m.get(c.cliente_id) || {
+        clienteId: c.cliente_id, nombre: cl?.nombre_negocio || '?', telefono: cl?.telefono || '',
+        zona: cl?.zona || '', total: 0, diasHoy: 0, diasFin: 0, docs: [],
+      }
+      f.total += c.monto
+      f.diasHoy = Math.max(f.diasHoy, diasEntre(baseFecha(c), HOY))
+      f.diasFin = Math.max(f.diasFin, diasEntre(baseFecha(c), FIN))
+      f.docs.push(c)
+      m.set(c.cliente_id, f)
+    }
+    return [...m.values()].sort((a, b) => b.total - a.total)
+  }
+
+  const grupoA = agrupar(cierre.filter(c => diasEntre(baseFecha(c), HOY) > DIAS_LIMITE))
+  const grupoB = agrupar(cierre.filter(c => {
+    const dh = diasEntre(baseFecha(c), HOY)
+    return dh <= DIAS_LIMITE && diasEntre(baseFecha(c), FIN) >= DIAS_LIMITE
+  }))
+  const totA = grupoA.reduce((a, f) => a + f.total, 0)
+  const totB = grupoB.reduce((a, f) => a + f.total, 0)
+  const diasAlCierre = diasEntre(HOY, FIN)
+
+  const cobradoDelMes = cobros.filter(c => c.estado === 'pagado' && (c.fecha_pago || '').slice(0, 7) === HOY.slice(0, 7))
+  const totalCobradoMes = cobradoDelMes.reduce((a, c) => a + c.monto, 0)
+
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3">
         <h1 className="text-2xl font-bold text-violet-400">Cobros</h1>
+        <button onClick={() => setTab(tab === 'cierre' ? 'lista' : 'cierre')}
+          className={`ml-auto px-3 py-1.5 rounded-lg text-sm font-medium ${tab === 'cierre'
+            ? 'bg-amber-500 text-slate-950'
+            : 'bg-slate-800 hover:bg-slate-700 text-amber-400 border border-amber-500/40'}`}>
+          {tab === 'cierre' ? '← Lista' : '📅 Cierre de mes'}
+        </button>
         <button onClick={() => setTab(tab === 'nuevo' ? 'lista' : 'nuevo')}
-          className="ml-auto bg-violet-600 hover:bg-violet-700 text-white px-3 py-1.5 rounded-lg text-sm">
+          className="bg-violet-600 hover:bg-violet-700 text-white px-3 py-1.5 rounded-lg text-sm">
           {tab === 'nuevo' ? '← Lista' : '+ Nuevo'}
         </button>
       </div>
@@ -214,6 +278,103 @@ export default function Cobros() {
           </button>
         </div>
       )}
+
+      {tab === 'cierre' && <>
+        <div className="bg-slate-900 rounded-xl p-4 border border-slate-800 space-y-1">
+          <p className="text-sm text-slate-300">
+            Corte: <b className="text-white">{FIN.split('-').reverse().join('/')}</b>
+            <span className="text-slate-500"> · faltan {diasAlCierre} día{diasAlCierre === 1 ? '' : 's'}</span>
+          </p>
+          <p className="text-xs text-slate-500">
+            Antigüedad contada desde la emisión de cada factura. Al marcar una como pagada sale de esta lista.
+          </p>
+          <div className="flex gap-2 flex-wrap pt-2">
+            <div className="bg-red-950/60 border border-red-500/40 rounded-lg px-3 py-1.5">
+              <span className="text-xs text-red-300">Ya pasan de {DIAS_LIMITE}d: </span>
+              <span className="text-red-400 font-bold">${totA.toFixed(2)}</span>
+              <span className="text-xs text-slate-500"> ({grupoA.length})</span>
+            </div>
+            <div className="bg-amber-950/60 border border-amber-500/40 rounded-lg px-3 py-1.5">
+              <span className="text-xs text-amber-300">Llegan a {DIAS_LIMITE}d: </span>
+              <span className="text-amber-400 font-bold">${totB.toFixed(2)}</span>
+              <span className="text-xs text-slate-500"> ({grupoB.length})</span>
+            </div>
+            <div className="bg-slate-950 border border-slate-700 rounded-lg px-3 py-1.5">
+              <span className="text-xs text-slate-400">Total en riesgo: </span>
+              <span className="text-white font-bold">${(totA + totB).toFixed(2)}</span>
+            </div>
+            {totalCobradoMes > 0 && (
+              <div className="bg-green-950/60 border border-green-500/40 rounded-lg px-3 py-1.5">
+                <span className="text-xs text-green-300">Cobrado este mes: </span>
+                <span className="text-green-400 font-bold">${totalCobradoMes.toFixed(2)}</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {cargandoCierre && <p className="text-sm text-slate-500">Calculando…</p>}
+
+        {[
+          { titulo: `🔴 GRUPO A — ya pasan de ${DIAS_LIMITE} días`, filas: grupoA, total: totA,
+            nota: 'Deuda que ya está fuera de plazo.', color: 'red' },
+          { titulo: `🟠 GRUPO B — llegan a ${DIAS_LIMITE} días el ${FIN.split('-').reverse().slice(0, 2).join('/')}`, filas: grupoB, total: totB,
+            nota: 'Todavía se salvan: si cobras antes del cierre, no cruzan el límite.', color: 'amber' },
+        ].map(g => (
+          <div key={g.titulo} className="space-y-2">
+            <div className="flex items-baseline gap-2 flex-wrap">
+              <h2 className={`text-sm font-bold ${g.color === 'red' ? 'text-red-400' : 'text-amber-400'}`}>{g.titulo}</h2>
+              <span className="text-xs text-slate-500">{g.filas.length} clientes · ${g.total.toFixed(2)}</span>
+            </div>
+            <p className="text-xs text-slate-500">{g.nota}</p>
+            {!g.filas.length && !cargandoCierre && (
+              <p className="text-sm text-green-400 bg-green-950/40 border border-green-500/30 rounded-lg px-3 py-2">
+                Nada aquí ✓
+              </p>
+            )}
+            {g.filas.map(f => (
+              <div key={f.clienteId}
+                className={`bg-slate-900 border-y border-r border-slate-800 border-l-4 rounded-xl p-3 ${
+                  g.color === 'red' ? 'border-l-red-500' : 'border-l-amber-500'}`}>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-medium truncate">{f.nombre}</p>
+                    <p className="text-xs text-slate-500">
+                      {f.zona || 'sin zona'} · {f.docs.length} factura{f.docs.length === 1 ? '' : 's'}
+                      {' · '}
+                      {g.color === 'red'
+                        ? <span className="text-red-400">{f.diasHoy}d vencido</span>
+                        : <span className="text-amber-400">hoy {f.diasHoy}d → {f.diasFin}d al cierre</span>}
+                    </p>
+                  </div>
+                  <p className="text-lg font-bold whitespace-nowrap">${f.total.toFixed(2)}</p>
+                </div>
+
+                <div className="mt-2 space-y-1">
+                  {f.docs.map(d => (
+                    <div key={d.id} className="flex items-center gap-2 text-xs bg-slate-950/60 rounded-lg px-2 py-1.5">
+                      <span className="text-slate-500 font-mono">{d.nro_documento_isola || d.descripcion || '—'}</span>
+                      <span className="text-slate-600">{baseFecha(d)}</span>
+                      <span className="ml-auto text-slate-300">${d.monto.toFixed(2)}</span>
+                      {d.estado === 'parcial' && <span className="text-yellow-400">parcial</span>}
+                      <button onClick={() => { setPagoModal(d); setFechaPagoInput(hoy()) }}
+                        className="bg-green-600 hover:bg-green-500 text-white px-2 py-0.5 rounded font-medium">
+                        ✓ Pagado
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                {f.telefono && (
+                  <a href={waMsg(f.docs[0])} target="_blank" rel="noopener noreferrer"
+                    className="inline-block mt-2 text-xs bg-slate-800 hover:bg-slate-700 px-2.5 py-1 rounded-lg">
+                    📱 WhatsApp
+                  </a>
+                )}
+              </div>
+            ))}
+          </div>
+        ))}
+      </>}
 
       {tab === 'lista' && <>
         <div className="flex items-center gap-3 flex-wrap">
