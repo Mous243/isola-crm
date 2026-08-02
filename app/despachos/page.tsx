@@ -68,7 +68,7 @@ export default function Despachos() {
     setItems(it || [])
 
     const { data: vis } = await supabase.from('visitas')
-      .select('*, clientes(nombre_negocio, propietario)')
+      .select('*, clientes(nombre_negocio, propietario, telefono)')
       .eq('resultado', 'visita_efectiva').gt('monto_pedido', 0)
       .eq('confirmado_sin_guia', false)
       .gte('fecha', CUTOFF_PEDIDOS_PENDIENTES).order('fecha', { ascending: false })
@@ -174,6 +174,7 @@ export default function Despachos() {
               const nivel = dias >= 7 ? 'rojo' : dias >= 3 ? 'amarillo' : 'verde'
               const barra = nivel === 'rojo' ? 'border-l-4 border-red-500' : nivel === 'amarillo' ? 'border-l-4 border-yellow-500' : 'border-l-4 border-green-600'
               const chofer = telUltimoChofer.get(v.cliente_id)
+              const telCliente = (v.clientes as any)?.telefono
               return (
               <div key={v.id} className={`flex items-center justify-between gap-2 bg-slate-900/60 rounded-lg px-3 py-2 text-sm ${barra}`}>
                 <div className="min-w-0">
@@ -181,10 +182,16 @@ export default function Despachos() {
                   <p className="text-xs text-slate-400">{v.fecha} · {v.moneda} {Number(v.monto_pedido).toFixed(2)} · {dias}d</p>
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">
+                  {telCliente && (
+                    <a href={`tel:${telCliente}`}
+                      className="bg-violet-900/50 hover:bg-violet-800/50 text-violet-300 px-2.5 py-1.5 rounded-lg text-xs">
+                      📞 Cliente
+                    </a>
+                  )}
                   {dias >= 7 && chofer && (
                     <a href={`tel:${chofer.telefono}`}
                       className="bg-blue-900/50 hover:bg-blue-800/50 text-blue-300 px-2.5 py-1.5 rounded-lg text-xs">
-                      📞 Llamar
+                      📞 Chofer
                     </a>
                   )}
                 <button onClick={() => confirmarSinGuia(v.id)}
