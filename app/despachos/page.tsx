@@ -171,7 +171,7 @@ export default function Despachos() {
           <div className="space-y-1.5 mt-2">
             {pedidosPendientes.map(v => {
               const dias = diasAtraso(v.fecha)
-              const nivel = dias >= 10 ? 'rojo' : dias >= 5 ? 'amarillo' : 'verde'
+              const nivel = dias >= 7 ? 'rojo' : dias >= 3 ? 'amarillo' : 'verde'
               const barra = nivel === 'rojo' ? 'border-l-4 border-red-500' : nivel === 'amarillo' ? 'border-l-4 border-yellow-500' : 'border-l-4 border-green-600'
               const chofer = telUltimoChofer.get(v.cliente_id)
               return (
@@ -181,7 +181,7 @@ export default function Despachos() {
                   <p className="text-xs text-slate-400">{v.fecha} · {v.moneda} {Number(v.monto_pedido).toFixed(2)} · {dias}d</p>
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">
-                  {dias >= 10 && chofer && (
+                  {dias >= 7 && chofer && (
                     <a href={`tel:${chofer.telefono}`}
                       className="bg-blue-900/50 hover:bg-blue-800/50 text-blue-300 px-2.5 py-1.5 rounded-lg text-xs">
                       📞 Llamar
