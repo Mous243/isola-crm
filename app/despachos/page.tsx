@@ -50,6 +50,7 @@ export default function Despachos() {
   const [procesandoDev, setProcesandoDev] = useState(false)
   const [copiadoId, setCopiadoId] = useState<number | null>(null)
   const [pedidosPendientes, setPedidosPendientes] = useState<Visita[]>([])
+  const [telUltimoChofer, setTelUltimoChofer] = useState<Map<number, { telefono: string; fecha: string }>>(new Map())
 
   const copiarRutero = async (d: Despacho) => {
     const url = `https://isola-crm-web.vercel.app/r/${d.numero_guia}`
@@ -76,8 +77,23 @@ export default function Despachos() {
       i.cliente_id === v.cliente_id && (fechaGuiaPorDespacho.get(i.despacho_id) ?? '') >= v.fecha
     ))
     setPedidosPendientes(pendientes)
+
+    // último chofer conocido por cliente (guía más reciente que le entregó algo)
+    const telPorCliente = new Map<number, { telefono: string; fecha: string }>()
+    const despachoPorId = new Map((d || []).map(x => [x.id, x]))
+    for (const i of (it || [])) {
+      const desp = despachoPorId.get(i.despacho_id)
+      if (!desp?.conductor_telefono) continue
+      const actual = telPorCliente.get(i.cliente_id)
+      if (!actual || desp.fecha_guia > actual.fecha) {
+        telPorCliente.set(i.cliente_id, { telefono: desp.conductor_telefono, fecha: desp.fecha_guia })
+      }
+    }
+    setTelUltimoChofer(telPorCliente)
   }
   useEffect(() => { cargar() }, [])
+
+  const diasAtraso = (fecha: string) => Math.floor((new Date(hoy() + 'T00:00:00').getTime() - new Date(fecha + 'T00:00:00').getTime()) / 864e5)
 
   const confirmarSinGuia = async (visitaId: number) => {
     await supabase.from('visitas').update({ confirmado_sin_guia: true }).eq('id', visitaId)
@@ -153,18 +169,32 @@ export default function Despachos() {
           <p className="text-sm font-semibold text-yellow-400">⏳ Pedidos sin despachar aún ({pedidosPendientes.length})</p>
           <p className="text-xs text-slate-400">Tomaste el pedido pero el cliente todavía no aparece en ninguna guía de despacho.</p>
           <div className="space-y-1.5 mt-2">
-            {pedidosPendientes.map(v => (
-              <div key={v.id} className="flex items-center justify-between gap-2 bg-slate-900/60 rounded-lg px-3 py-2 text-sm">
+            {pedidosPendientes.map(v => {
+              const dias = diasAtraso(v.fecha)
+              const nivel = dias >= 10 ? 'rojo' : dias >= 5 ? 'amarillo' : 'verde'
+              const barra = nivel === 'rojo' ? 'border-l-4 border-red-500' : nivel === 'amarillo' ? 'border-l-4 border-yellow-500' : 'border-l-4 border-green-600'
+              const chofer = telUltimoChofer.get(v.cliente_id)
+              return (
+              <div key={v.id} className={`flex items-center justify-between gap-2 bg-slate-900/60 rounded-lg px-3 py-2 text-sm ${barra}`}>
                 <div className="min-w-0">
                   <p className="truncate">{(v.clientes as any)?.nombre_negocio}</p>
-                  <p className="text-xs text-slate-400">{v.fecha} · {v.moneda} {Number(v.monto_pedido).toFixed(2)}</p>
+                  <p className="text-xs text-slate-400">{v.fecha} · {v.moneda} {Number(v.monto_pedido).toFixed(2)} · {dias}d</p>
                 </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {dias >= 10 && chofer && (
+                    <a href={`tel:${chofer.telefono}`}
+                      className="bg-blue-900/50 hover:bg-blue-800/50 text-blue-300 px-2.5 py-1.5 rounded-lg text-xs">
+                      📞 Llamar
+                    </a>
+                  )}
                 <button onClick={() => confirmarSinGuia(v.id)}
                   className="shrink-0 bg-green-800/50 hover:bg-green-700/50 text-green-400 px-2.5 py-1.5 rounded-lg text-xs">
                   ✅ Confirmar
                 </button>
+                </div>
               </div>
-            ))}
+              )
+            })}
           </div>
         </div>
       )}
