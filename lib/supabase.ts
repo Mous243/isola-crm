@@ -90,6 +90,15 @@ export type DespachoItem = {
   clientes?: { nombre_negocio: string; propietario?: string; telefono?: string }
 }
 
+export type IncentivoProducto = {
+  id: number
+  periodo: string
+  producto: string
+  keyword: string
+  base_cuota: number
+  created_at?: string
+}
+
 export type PlanTrabajo = {
   id: number
   tipo: 'mensual' | 'semanal' | 'diario'

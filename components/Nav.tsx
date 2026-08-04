@@ -11,6 +11,7 @@ const links = [
   { href: '/planificacion', label: 'Plan',   icon: '🎯' },
   { href: '/metricas',  label: 'Métricas',   icon: '📊' },
   { href: '/catalogo',  label: 'Catálogo',   icon: '📦' },
+  { href: '/incentivo', label: 'Incentivo',  icon: '🏆' },
 ]
 
 export default function Nav() {
