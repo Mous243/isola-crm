@@ -60,6 +60,7 @@ export default function Cobros() {
     const { data } = await supabase.from('cobros')
       .select('*, clientes(nombre_negocio, propietario, telefono, zona, codigo_cliente)')
       .in('estado', ['pendiente', 'parcial'])
+      .neq('origen', 'isola_cxc')
       .order('fecha_emision')
     setCierre(data || [])
     setCargandoCierre(false)
@@ -286,7 +287,7 @@ export default function Cobros() {
             <span className="text-slate-500"> · faltan {diasAlCierre} día{diasAlCierre === 1 ? '' : 's'}</span>
           </p>
           <p className="text-xs text-slate-500">
-            Antigüedad contada desde la emisión de cada factura. Al marcar una como pagada sale de esta lista.
+            Antigüedad contada desde la emisión de cada factura. Al marcar una como pagada sale de esta lista. Solo cartera propia — no incluye el CxC de ISOLA.
           </p>
           <div className="flex gap-2 flex-wrap pt-2">
             <div className="bg-red-950/60 border border-red-500/40 rounded-lg px-3 py-1.5">
