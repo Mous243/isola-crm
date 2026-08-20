@@ -16,6 +16,7 @@ type VisitaMin = { cliente_id: number; productos_pedidos: { nombre?: string; caj
 type ClienteMin = { id: number; nombre_negocio: string; dia_visita?: string }
 type Dropsize = { nombre: string; volumen: number; clientesActivos: number; dropsize: number }
 type Categoria = { nombre: string; kws: string[]; clientesActivos: number; oportunidad: ClienteMin[] }
+type Exhibicion = { id: number; cliente_id: number; hecha: boolean; fecha_hecha: string | null; clientes: { nombre_negocio: string; dia_visita: string | null } | null }
 type Snapshot = {
   puesto_nacional: number | null; total_rdv: number | null; puntos_totales: number | null
   territorio_propio: number | null; territorio_rival: number | null; territorio_rival_nombre: string | null
@@ -60,6 +61,8 @@ export default function Incentivo() {
   const [expandido, setExpandido] = useState<string | null>(null)
   const [cargando, setCargando] = useState(true)
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null)
+  const [exhibiciones, setExhibiciones] = useState<Exhibicion[]>([])
+  const [exhibExpandido, setExhibExpandido] = useState(false)
 
   useEffect(() => {
     const periodo = periodoActual()
@@ -72,12 +75,14 @@ export default function Incentivo() {
       supabase.from('clientes').select('id, nombre_negocio, dia_visita').in('status', ['activo', 'nuevo']).order('nombre_negocio'),
       supabase.from('incentivo_snapshot').select('*').eq('periodo', periodo).order('updated_at', { ascending: false }).limit(1).maybeSingle(),
       supabase.from('visitas').select('cliente_id, monto_pedido').eq('resultado', 'visita_efectiva'),
-    ]).then(([prodRes, visRes, cobRes, cliRes, snapRes, valRes]) => {
+      supabase.from('incentivo_exhibiciones').select('id, cliente_id, hecha, fecha_hecha, clientes(nombre_negocio, dia_visita)').eq('candidato', true).order('id'),
+    ]).then(([prodRes, visRes, cobRes, cliRes, snapRes, valRes, exhibRes]) => {
       const productos = prodRes.data || []
       const visitas = (visRes.data || []) as VisitaMin[]
       const cobros = cobRes.data || []
       const clientesData = (cliRes.data || []) as ClienteMin[]
       setSnapshot(snapRes.data as Snapshot | null)
+      setExhibiciones((exhibRes.data as unknown as Exhibicion[]) || [])
 
       const valorPorCliente = new Map<number, number>()
       for (const v of (valRes.data || [])) {
@@ -123,6 +128,14 @@ export default function Incentivo() {
 
   const totalPuntos = filas.reduce((a, f) => a + f.puntos, 0)
   const pctCobranza = cobranza && cobranza.facturado > 0 ? (cobranza.cobrado / cobranza.facturado) * 100 : 0
+  const exhibHechas = exhibiciones.filter(e => e.hecha)
+  const puntosExhib = exhibHechas.length * 25
+
+  async function marcarExhibicion(id: number, hecha: boolean) {
+    const fecha_hecha = hecha ? hoy() : null
+    setExhibiciones(prev => prev.map(e => e.id === id ? { ...e, hecha, fecha_hecha } : e))
+    await supabase.from('incentivo_exhibiciones').update({ hecha, fecha_hecha }).eq('id', id)
+  }
 
   return (
     <div className="space-y-4">
@@ -243,9 +256,27 @@ export default function Incentivo() {
             <p className="text-xs text-slate-500">Clientes activos este mes en cada una de las 8 categorías clave (4 de volumen + 4 de activación). El RDV con más clientes en cada una gana +100 pts.</p>
           </div>
 
-          <div className="bg-amber-950/30 rounded-xl p-4 border border-amber-900/50 text-xs text-slate-300 space-y-1">
-            <p className="font-semibold text-amber-400">📋 Pendiente</p>
-            <p>• Exhibición adicional: +25 pts por cada exhibición nueva de Osole SPP en carnicería/punto de proteína — es una acción de campo, no se registra en el CRM. Ya tienes 2 confirmadas (50 pts) según el último corte</p>
+          <div className="bg-slate-900 rounded-xl border border-slate-800 overflow-hidden">
+            <button onClick={() => setExhibExpandido(!exhibExpandido)} className="w-full flex items-center justify-between p-4 text-left hover:bg-slate-800/40">
+              <div>
+                <p className="font-semibold text-sm text-amber-400">🖼️ Exhibición adicional Osole SPP</p>
+                <p className="text-xs text-slate-500 mt-0.5">{exhibHechas.length} de {exhibiciones.length} candidatos hechos · <strong className="text-amber-300">{puntosExhib} pts</strong> (sin contar el corte oficial de 50 pts ya acreditado)</p>
+              </div>
+              <span className="text-slate-500">{exhibExpandido ? '▲' : '▼'}</span>
+            </button>
+            {exhibExpandido && (
+              <div className="border-t border-slate-800 p-3 max-h-96 overflow-y-auto space-y-1">
+                <p className="text-[11px] text-slate-500 pb-2">+25 pts por cada exhibición confirmada en carnicería/punto de proteína. Márcala cuando la montes y la reportes a tu supervisor.</p>
+                {exhibiciones.map(e => (
+                  <label key={e.id} className="flex items-center gap-2 text-sm py-1 cursor-pointer">
+                    <input type="checkbox" checked={e.hecha} onChange={ev => marcarExhibicion(e.id, ev.target.checked)}
+                      className="w-4 h-4 accent-amber-500 shrink-0" />
+                    <span className={e.hecha ? 'text-slate-500 line-through flex-1 truncate' : 'text-slate-300 flex-1 truncate'}>{e.clientes?.nombre_negocio || `Cliente #${e.cliente_id}`}</span>
+                    <span className="text-xs text-slate-500 shrink-0">{e.clientes?.dia_visita || ''}</span>
+                  </label>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="space-y-2">
