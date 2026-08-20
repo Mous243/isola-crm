@@ -16,7 +16,11 @@ type VisitaMin = { cliente_id: number; productos_pedidos: { nombre?: string; caj
 type ClienteMin = { id: number; nombre_negocio: string; dia_visita?: string }
 type Dropsize = { nombre: string; volumen: number; clientesActivos: number; dropsize: number }
 type Categoria = { nombre: string; kws: string[]; clientesActivos: number; oportunidad: ClienteMin[] }
-
+type Snapshot = {
+  puesto_nacional: number | null; total_rdv: number | null; puntos_totales: number | null
+  territorio_propio: number | null; territorio_rival: number | null; territorio_rival_nombre: string | null
+  corte_fecha: string | null
+}
 const DROPSIZE_KEYWORDS: [string, string[]][] = [
   ['Osole - Aceitunas', ['aceituna']],
   ['GP - Baterías', ['pila', 'bateria']],
@@ -29,9 +33,6 @@ const ACTIVACION_KEYWORDS: [string, string[]][] = [
   ['Ole - Aderezos', ['mayonesa ole', 'mostaza ole', 'ketchup ole', 'aderezar ole']],
   ['Osole - Compotas 150g', ['compota']],
 ]
-
-const RANKING = { puesto: 106, total: 190, puntos: 75, corte: '14/08/2026' }
-const TERRITORIO = { miranda: 105, ccsEste: 170, corte: '14/08/2026' }
 
 function matchVolumen(visitas: VisitaMin[], kws: string[]) {
   let volumen = 0
@@ -56,6 +57,7 @@ export default function Incentivo() {
   const [categorias, setCategorias] = useState<Categoria[]>([])
   const [expandido, setExpandido] = useState<string | null>(null)
   const [cargando, setCargando] = useState(true)
+  const [snapshot, setSnapshot] = useState<Snapshot | null>(null)
 
   useEffect(() => {
     const periodo = periodoActual()
@@ -66,11 +68,19 @@ export default function Incentivo() {
       supabase.from('visitas').select('cliente_id, productos_pedidos').gte('fecha', inicioMes),
       supabase.from('cobros').select('monto, estado').eq('origen', 'crm').gte('fecha_emision', inicioMes),
       supabase.from('clientes').select('id, nombre_negocio, dia_visita').in('status', ['activo', 'nuevo']).order('nombre_negocio'),
-    ]).then(([prodRes, visRes, cobRes, cliRes]) => {
+      supabase.from('incentivo_snapshot').select('*').eq('periodo', periodo).order('updated_at', { ascending: false }).limit(1).maybeSingle(),
+      supabase.from('visitas').select('cliente_id, monto_pedido').eq('resultado', 'visita_efectiva'),
+    ]).then(([prodRes, visRes, cobRes, cliRes, snapRes, valRes]) => {
       const productos = prodRes.data || []
       const visitas = (visRes.data || []) as VisitaMin[]
       const cobros = cobRes.data || []
-      const clientes = (cliRes.data || []) as ClienteMin[]
+      const clientesData = (cliRes.data || []) as ClienteMin[]
+      setSnapshot(snapRes.data as Snapshot | null)
+
+      const valorPorCliente = new Map<number, number>()
+      for (const v of (valRes.data || [])) {
+        valorPorCliente.set(v.cliente_id, (valorPorCliente.get(v.cliente_id) || 0) + Number(v.monto_pedido || 0))
+      }
 
       const calculadas: Fila[] = productos.map(p => {
         const kws: string[] = p.keyword.split(',').map((k: string) => k.trim().toLowerCase())
@@ -87,13 +97,16 @@ export default function Incentivo() {
       setDropsizes(drops)
 
       // 8 categorias clave: las 4 de volumen + las 4 de activacion, todas con lista de oportunidad
+      // ordenada por lo que ese cliente ya te ha comprado historicamente (mayor potencial primero)
       const todasCategorias: [string, string[]][] = [
         ...productos.map(p => [p.producto, p.keyword.split(',').map((k: string) => k.trim().toLowerCase())] as [string, string[]]),
         ...ACTIVACION_KEYWORDS,
       ]
       const cats: Categoria[] = todasCategorias.map(([nombre, kws]) => {
         const { clientesActivos, idsActivos } = matchVolumen(visitas, kws)
-        const oportunidad = clientes.filter(c => !idsActivos.has(c.id))
+        const oportunidad = clientesData
+          .filter(c => !idsActivos.has(c.id))
+          .sort((a, b) => (valorPorCliente.get(b.id) || 0) - (valorPorCliente.get(a.id) || 0))
         return { nombre, kws, clientesActivos, oportunidad }
       })
       setCategorias(cats)
@@ -113,31 +126,39 @@ export default function Incentivo() {
     <div className="space-y-4">
       <h1 className="text-2xl font-bold text-violet-400">🏆 Incentivo — Tren Verano Solidario 2026</h1>
 
-      <div className="bg-slate-900 rounded-xl border border-slate-800 p-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-xs text-slate-500">Ranking nacional (corte {RANKING.corte})</p>
-            <p className="text-2xl font-bold text-white">#{RANKING.puesto} <span className="text-sm font-normal text-slate-500">de {RANKING.total}</span></p>
+      {snapshot && (
+        <>
+          <div className="bg-slate-900 rounded-xl border border-slate-800 p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-slate-500">Ranking nacional</p>
+                <p className="text-2xl font-bold text-white">#{snapshot.puesto_nacional} <span className="text-sm font-normal text-slate-500">de {snapshot.total_rdv}</span></p>
+              </div>
+              <div className="text-right">
+                <p className="text-xs text-slate-500">Puntos totales</p>
+                <p className="text-2xl font-bold text-violet-400">{snapshot.puntos_totales}</p>
+              </div>
+            </div>
           </div>
-          <div className="text-right">
-            <p className="text-xs text-slate-500">Puntos totales</p>
-            <p className="text-2xl font-bold text-violet-400">{RANKING.puntos}</p>
-          </div>
-        </div>
-      </div>
 
-      <div className="bg-slate-900 rounded-xl border border-slate-800 p-4">
-        <p className="font-semibold text-sm mb-2">🏍️ Territorio (SUC 10) — premio de la moto</p>
-        <div className="flex items-center justify-between text-sm">
-          <span className={TERRITORIO.miranda >= TERRITORIO.ccsEste ? 'text-green-400 font-bold' : 'text-slate-300'}>Isola Miranda: {TERRITORIO.miranda}</span>
-          <span className={TERRITORIO.ccsEste > TERRITORIO.miranda ? 'text-red-400 font-bold' : 'text-slate-300'}>Isola CCS Este: {TERRITORIO.ccsEste}</span>
-        </div>
-        <p className="text-xs text-slate-500 mt-1">
-          {TERRITORIO.ccsEste > TERRITORIO.miranda
-            ? `Vas perdiendo por ${TERRITORIO.ccsEste - TERRITORIO.miranda} puntos — corte ${TERRITORIO.corte}`
-            : `Vas ganando por ${TERRITORIO.miranda - TERRITORIO.ccsEste} puntos — corte ${TERRITORIO.corte}`}
-        </p>
-      </div>
+          <div className="bg-slate-900 rounded-xl border border-slate-800 p-4">
+            <p className="font-semibold text-sm mb-2">🏍️ Territorio (SUC 10) — premio de la moto</p>
+            <div className="flex items-center justify-between text-sm">
+              <span className={(snapshot.territorio_propio ?? 0) >= (snapshot.territorio_rival ?? 0) ? 'text-green-400 font-bold' : 'text-slate-300'}>Isola Miranda: {snapshot.territorio_propio}</span>
+              <span className={(snapshot.territorio_rival ?? 0) > (snapshot.territorio_propio ?? 0) ? 'text-red-400 font-bold' : 'text-slate-300'}>{snapshot.territorio_rival_nombre}: {snapshot.territorio_rival}</span>
+            </div>
+            <p className="text-xs text-slate-500 mt-1">
+              {(snapshot.territorio_rival ?? 0) > (snapshot.territorio_propio ?? 0)
+                ? `Vas perdiendo por ${(snapshot.territorio_rival ?? 0) - (snapshot.territorio_propio ?? 0)} puntos`
+                : `Vas ganando por ${(snapshot.territorio_propio ?? 0) - (snapshot.territorio_rival ?? 0)} puntos`}
+            </p>
+          </div>
+
+          <p className="text-xs text-amber-400/80 -mt-2">
+            ⚠️ Datos del incentivo actualizados al {snapshot.corte_fecha?.split('-').reverse().join('/')} — pásame el Excel nuevo cuando lo tengas para actualizarlo.
+          </p>
+        </>
+      )}
 
       {cargando && <p className="text-sm text-slate-500">Cargando...</p>}
 
@@ -196,8 +217,13 @@ export default function Incentivo() {
             <p className="text-xs text-slate-500">Clientes activos este mes en cada una de las 8 categorías clave (4 de volumen + 4 de activación). El RDV con más clientes en cada una gana +100 pts.</p>
           </div>
 
+          <div className="bg-amber-950/30 rounded-xl p-4 border border-amber-900/50 text-xs text-slate-300 space-y-1">
+            <p className="font-semibold text-amber-400">📋 Pendiente</p>
+            <p>• Exhibición adicional: +25 pts por cada exhibición nueva de Osole SPP en carnicería/punto de proteína — es una acción de campo, no se registra en el CRM. Ya tienes 2 confirmadas (50 pts) según el último corte</p>
+          </div>
+
           <div className="space-y-2">
-            <p className="text-sm font-semibold text-slate-200">📍 Oportunidades por categoría — clientes que aún NO te han comprado esto este mes</p>
+            <p className="text-sm font-semibold text-slate-200">📍 Oportunidades por categoría — ordenadas por el cliente que más te compra</p>
             {categorias.map(cat => (
               <div key={cat.nombre} className="bg-slate-900 rounded-xl border border-slate-800 overflow-hidden">
                 <button onClick={() => setExpandido(expandido === cat.nombre ? null : cat.nombre)}
@@ -220,11 +246,6 @@ export default function Incentivo() {
                 )}
               </div>
             ))}
-          </div>
-
-          <div className="bg-amber-950/30 rounded-xl p-4 border border-amber-900/50 text-xs text-slate-300 space-y-1">
-            <p className="font-semibold text-amber-400">📋 Pendiente</p>
-            <p>• Exhibición adicional: +25 pts por cada exhibición nueva de Osole SPP en carnicería/punto de proteína — es una acción de campo, no se registra en el CRM todavía. Ya tienes 2 confirmadas (50 pts) según el corte del {RANKING.corte}</p>
           </div>
         </>
       )}
