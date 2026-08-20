@@ -20,6 +20,8 @@ type Snapshot = {
   puesto_nacional: number | null; total_rdv: number | null; puntos_totales: number | null
   territorio_propio: number | null; territorio_rival: number | null; territorio_rival_nombre: string | null
   corte_fecha: string | null
+  captaciones_mes: number | null; captaciones_lider: boolean | null
+  volumen_jun: number | null; volumen_jul: number | null; volumen_ago: number | null
 }
 const DROPSIZE_KEYWORDS: [string, string[]][] = [
   ['Osole - Aceitunas', ['aceituna']],
@@ -157,6 +159,30 @@ export default function Incentivo() {
           <p className="text-xs text-amber-400/80 -mt-2">
             ⚠️ Datos del incentivo actualizados al {snapshot.corte_fecha?.split('-').reverse().join('/')} — pásame el Excel nuevo cuando lo tengas para actualizarlo.
           </p>
+
+          {(snapshot.captaciones_mes != null || snapshot.volumen_ago != null) && (
+            <div className="bg-slate-900 rounded-xl border border-slate-800 p-4 space-y-2">
+              <p className="font-semibold text-sm">📈 Tu tendencia</p>
+              {snapshot.captaciones_mes != null && (
+                <p className="text-sm text-slate-300">
+                  Captaciones de agosto: <strong className="text-green-400">{snapshot.captaciones_mes} clientes nuevos</strong>
+                  {snapshot.captaciones_lider && <span className="text-xs text-amber-400"> — líder de tu sucursal 🥇</span>}
+                </p>
+              )}
+              {(snapshot.volumen_jun != null || snapshot.volumen_jul != null || snapshot.volumen_ago != null) && (
+                <div className="flex items-end gap-3 pt-1">
+                  {[['Jun', snapshot.volumen_jun], ['Jul', snapshot.volumen_jul], ['Ago*', snapshot.volumen_ago]].map(([mes, val]) => (
+                    <div key={mes as string} className="text-center flex-1">
+                      <div className="bg-violet-500/70 rounded-t mx-auto" style={{ height: `${Math.max(((val as number) || 0) / 8, 4)}px`, width: '70%' }} />
+                      <p className="text-xs text-slate-400 mt-1">{mes}</p>
+                      <p className="text-xs font-semibold text-slate-200">{val ?? '—'}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <p className="text-[11px] text-slate-500">*Agosto parcial · cajas de todas las categorías, no solo las 4 clave del incentivo</p>
+            </div>
+          )}
         </>
       )}
 
