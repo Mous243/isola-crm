@@ -82,7 +82,13 @@ export default function Incentivo() {
       const cobros = cobRes.data || []
       const clientesData = (cliRes.data || []) as ClienteMin[]
       setSnapshot(snapRes.data as Snapshot | null)
-      setExhibiciones((exhibRes.data as unknown as Exhibicion[]) || [])
+      const ordenDias = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes']
+      const exhibOrdenadas = ((exhibRes.data as unknown as Exhibicion[]) || []).slice().sort((a, b) => {
+        const da = ordenDias.indexOf(a.clientes?.dia_visita || '')
+        const db = ordenDias.indexOf(b.clientes?.dia_visita || '')
+        return (da === -1 ? 99 : da) - (db === -1 ? 99 : db)
+      })
+      setExhibiciones(exhibOrdenadas)
 
       const valorPorCliente = new Map<number, number>()
       for (const v of (valRes.data || [])) {
