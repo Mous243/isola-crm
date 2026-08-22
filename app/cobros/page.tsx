@@ -60,7 +60,7 @@ export default function Cobros() {
     const { data } = await supabase.from('cobros')
       .select('*, clientes(nombre_negocio, propietario, telefono, zona, codigo_cliente)')
       .in('estado', ['pendiente', 'parcial'])
-      .neq('origen', 'isola_cxc')
+      .eq('origen', 'isola_cxc')
       .order('fecha_emision')
     setCierre(data || [])
     setCargandoCierre(false)
