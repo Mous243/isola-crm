@@ -23,6 +23,7 @@ type Snapshot = {
   corte_fecha: string | null
   captaciones_mes: number | null; captaciones_lider: boolean | null
   volumen_jun: number | null; volumen_jul: number | null; volumen_ago: number | null
+  facturacion_isola: number | null; cobranza_isola: number | null
 }
 const DROPSIZE_KEYWORDS: [string, string[]][] = [
   ['Osole - Aceitunas', ['aceituna']],
@@ -133,7 +134,9 @@ export default function Incentivo() {
   }, [])
 
   const totalPuntos = filas.reduce((a, f) => a + f.puntos, 0)
-  const pctCobranza = cobranza && cobranza.facturado > 0 ? (cobranza.cobrado / cobranza.facturado) * 100 : 0
+  const facturadoMostrar = snapshot?.facturacion_isola ?? cobranza?.facturado ?? 0
+  const cobradoMostrar = snapshot?.cobranza_isola ?? cobranza?.cobrado ?? 0
+  const pctCobranza = facturadoMostrar > 0 ? (cobradoMostrar / facturadoMostrar) * 100 : 0
   const exhibHechas = exhibiciones.filter(e => e.hecha)
   const exhibConfirmadas = exhibiciones.filter(e => e.confirmada_isola)
   const exhibPendientesValidar = exhibHechas.filter(e => !e.confirmada_isola)
@@ -238,7 +241,8 @@ export default function Incentivo() {
           <div className="bg-slate-900 rounded-xl border border-slate-800 p-4">
             <p className="font-semibold text-sm mb-2">💰 Cobranza del mes (acelerador +100 pts si estás Top 10 nacional)</p>
             <p className="text-xs text-slate-400 mb-2">
-              Facturado: ${cobranza?.facturado.toFixed(0)} · Cobrado: ${cobranza?.cobrado.toFixed(0)}
+              Facturado: ${facturadoMostrar.toFixed(0)} · Cobrado: ${cobradoMostrar.toFixed(0)}
+              {snapshot?.facturacion_isola != null && <span className="text-slate-600"> (real ISOLA)</span>}
             </p>
             <div className="flex items-center justify-between">
               <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden flex-1 mr-3">
