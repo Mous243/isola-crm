@@ -16,7 +16,7 @@ type VisitaMin = { cliente_id: number; productos_pedidos: { nombre?: string; caj
 type ClienteMin = { id: number; nombre_negocio: string; dia_visita?: string }
 type Dropsize = { nombre: string; volumen: number; clientesActivos: number; dropsize: number }
 type Categoria = { nombre: string; kws: string[]; clientesActivos: number; oportunidad: ClienteMin[] }
-type Exhibicion = { id: number; cliente_id: number; hecha: boolean; fecha_hecha: string | null; confirmada_isola: boolean; fecha_confirmada: string | null; clientes: { nombre_negocio: string; dia_visita: string | null } | null }
+type Exhibicion = { id: number; cliente_id: number; hecha: boolean; fecha_hecha: string | null; confirmada_isola: boolean; fecha_confirmada: string | null; marca: 'osole' | 'renata'; clientes: { nombre_negocio: string; dia_visita: string | null } | null }
 type Snapshot = {
   puesto_nacional: number | null; total_rdv: number | null; puntos_totales: number | null
   territorio_propio: number | null; territorio_rival: number | null; territorio_rival_nombre: string | null
@@ -64,6 +64,7 @@ export default function Incentivo() {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null)
   const [exhibiciones, setExhibiciones] = useState<Exhibicion[]>([])
   const [exhibExpandido, setExhibExpandido] = useState(false)
+  const [exhibExpandidoRenata, setExhibExpandidoRenata] = useState(false)
 
   useEffect(() => {
     const periodo = periodoActual()
@@ -76,7 +77,7 @@ export default function Incentivo() {
       supabase.from('clientes').select('id, nombre_negocio, dia_visita').in('status', ['activo', 'nuevo']).order('nombre_negocio'),
       supabase.from('incentivo_snapshot').select('*').eq('periodo', periodo).order('updated_at', { ascending: false }).limit(1).maybeSingle(),
       supabase.from('visitas').select('cliente_id, monto_pedido').eq('resultado', 'visita_efectiva'),
-      supabase.from('incentivo_exhibiciones').select('id, cliente_id, hecha, fecha_hecha, confirmada_isola, fecha_confirmada, clientes(nombre_negocio, dia_visita)').eq('candidato', true).order('id'),
+      supabase.from('incentivo_exhibiciones').select('id, cliente_id, hecha, fecha_hecha, confirmada_isola, fecha_confirmada, marca, clientes(nombre_negocio, dia_visita)').eq('candidato', true).order('id'),
     ]).then(([prodRes, visRes, cobRes, cliRes, snapRes, valRes, exhibRes]) => {
       const productos = prodRes.data || []
       const visitas = (visRes.data || []) as VisitaMin[]
@@ -137,10 +138,16 @@ export default function Incentivo() {
   const facturadoMostrar = snapshot?.facturacion_isola ?? cobranza?.facturado ?? 0
   const cobradoMostrar = snapshot?.cobranza_isola ?? cobranza?.cobrado ?? 0
   const pctCobranza = facturadoMostrar > 0 ? (cobradoMostrar / facturadoMostrar) * 100 : 0
-  const exhibHechas = exhibiciones.filter(e => e.hecha)
-  const exhibConfirmadas = exhibiciones.filter(e => e.confirmada_isola)
+  const exhibOsole = exhibiciones.filter(e => e.marca === 'osole')
+  const exhibRenata = exhibiciones.filter(e => e.marca === 'renata')
+  const exhibHechas = exhibOsole.filter(e => e.hecha)
+  const exhibConfirmadas = exhibOsole.filter(e => e.confirmada_isola)
   const exhibPendientesValidar = exhibHechas.filter(e => !e.confirmada_isola)
   const puntosExhibConfirmados = exhibConfirmadas.length * 25
+  const exhibHechasRenata = exhibRenata.filter(e => e.hecha)
+  const exhibConfirmadasRenata = exhibRenata.filter(e => e.confirmada_isola)
+  const exhibPendientesValidarRenata = exhibHechasRenata.filter(e => !e.confirmada_isola)
+  const puntosExhibConfirmadosRenata = exhibConfirmadasRenata.length * 25
 
   async function marcarExhibicion(id: number, hecha: boolean) {
     const fecha_hecha = hecha ? hoy() : null
@@ -273,7 +280,7 @@ export default function Incentivo() {
               <div>
                 <p className="font-semibold text-sm text-amber-400">🖼️ Exhibición adicional Osole SPP</p>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  {exhibHechas.length} de {exhibiciones.length} marcadas · <strong className="text-green-400">{exhibConfirmadas.length} confirmadas por ISOLA</strong> ({puntosExhibConfirmados} pts)
+                  {exhibHechas.length} de {exhibOsole.length} marcadas · <strong className="text-green-400">{exhibConfirmadas.length} confirmadas por ISOLA</strong> ({puntosExhibConfirmados} pts)
                   {exhibPendientesValidar.length > 0 && <> · <span className="text-amber-400">{exhibPendientesValidar.length} pendientes de validar</span></>}
                 </p>
               </div>
@@ -282,10 +289,39 @@ export default function Incentivo() {
             {exhibExpandido && (
               <div className="border-t border-slate-800 p-3 max-h-96 overflow-y-auto space-y-1">
                 <p className="text-[11px] text-slate-500 pb-2">+25 pts por cada exhibición confirmada en carnicería/punto de proteína. Márcala cuando la montes y la reportes a tu supervisor.</p>
-                {exhibiciones.map(e => (
+                {exhibOsole.map(e => (
                   <label key={e.id} className="flex items-center gap-2 text-sm py-1 cursor-pointer">
                     <input type="checkbox" checked={e.hecha} onChange={ev => marcarExhibicion(e.id, ev.target.checked)}
                       className="w-4 h-4 accent-amber-500 shrink-0" />
+                    <span className={e.hecha ? 'text-slate-500 line-through flex-1 truncate' : 'text-slate-300 flex-1 truncate'}>{e.clientes?.nombre_negocio || `Cliente #${e.cliente_id}`}</span>
+                    {e.confirmada_isola
+                      ? <span className="text-[10px] bg-green-950/50 text-green-400 border border-green-900/50 px-1.5 py-0.5 rounded-full shrink-0">✅ confirmada</span>
+                      : e.hecha && <span className="text-[10px] bg-amber-950/50 text-amber-400 border border-amber-900/50 px-1.5 py-0.5 rounded-full shrink-0">🕐 sin validar</span>}
+                    <span className="text-xs text-slate-500 shrink-0">{e.clientes?.dia_visita || ''}</span>
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="bg-slate-900 rounded-xl border border-slate-800 overflow-hidden">
+            <button onClick={() => setExhibExpandidoRenata(!exhibExpandidoRenata)} className="w-full flex items-center justify-between p-4 text-left hover:bg-slate-800/40">
+              <div>
+                <p className="font-semibold text-sm text-pink-400">🖼️ Exhibición adicional Renata</p>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {exhibHechasRenata.length} de {exhibRenata.length} marcadas · <strong className="text-green-400">{exhibConfirmadasRenata.length} confirmadas por ISOLA</strong> ({puntosExhibConfirmadosRenata} pts)
+                  {exhibPendientesValidarRenata.length > 0 && <> · <span className="text-amber-400">{exhibPendientesValidarRenata.length} pendientes de validar</span></>}
+                </p>
+              </div>
+              <span className="text-slate-500">{exhibExpandidoRenata ? '▲' : '▼'}</span>
+            </button>
+            {exhibExpandidoRenata && (
+              <div className="border-t border-slate-800 p-3 max-h-96 overflow-y-auto space-y-1">
+                <p className="text-[11px] text-slate-500 pb-2">Exhibición adicional de línea Renata (galletas, sopas, mezclas para torta). Márcala cuando la montes y la reportes a tu supervisor.</p>
+                {exhibRenata.map(e => (
+                  <label key={e.id} className="flex items-center gap-2 text-sm py-1 cursor-pointer">
+                    <input type="checkbox" checked={e.hecha} onChange={ev => marcarExhibicion(e.id, ev.target.checked)}
+                      className="w-4 h-4 accent-pink-500 shrink-0" />
                     <span className={e.hecha ? 'text-slate-500 line-through flex-1 truncate' : 'text-slate-300 flex-1 truncate'}>{e.clientes?.nombre_negocio || `Cliente #${e.cliente_id}`}</span>
                     {e.confirmada_isola
                       ? <span className="text-[10px] bg-green-950/50 text-green-400 border border-green-900/50 px-1.5 py-0.5 rounded-full shrink-0">✅ confirmada</span>
