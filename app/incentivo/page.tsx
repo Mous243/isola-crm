@@ -17,6 +17,7 @@ type ClienteMin = { id: number; nombre_negocio: string; dia_visita?: string }
 type Dropsize = { nombre: string; volumen: number; clientesActivos: number; dropsize: number }
 type Categoria = { nombre: string; kws: string[]; clientesActivos: number; oportunidad: ClienteMin[] }
 type Exhibicion = { id: number; cliente_id: number; hecha: boolean; fecha_hecha: string | null; confirmada_isola: boolean; fecha_confirmada: string | null; marca: 'osole' | 'renata'; clientes: { nombre_negocio: string; dia_visita: string | null } | null }
+type Suc10Row = { vendedor: string; sucursal: string; puntos: number }
 type Snapshot = {
   puesto_nacional: number | null; total_rdv: number | null; puntos_totales: number | null
   territorio_propio: number | null; territorio_rival: number | null; territorio_rival_nombre: string | null
@@ -65,6 +66,7 @@ export default function Incentivo() {
   const [exhibiciones, setExhibiciones] = useState<Exhibicion[]>([])
   const [exhibExpandido, setExhibExpandido] = useState(false)
   const [exhibExpandidoRenata, setExhibExpandidoRenata] = useState(false)
+  const [suc10, setSuc10] = useState<Suc10Row[]>([])
 
   useEffect(() => {
     const periodo = periodoActual()
@@ -78,7 +80,8 @@ export default function Incentivo() {
       supabase.from('incentivo_snapshot').select('*').eq('periodo', periodo).order('updated_at', { ascending: false }).limit(1).maybeSingle(),
       supabase.from('visitas').select('cliente_id, monto_pedido').eq('resultado', 'visita_efectiva'),
       supabase.from('incentivo_exhibiciones').select('id, cliente_id, hecha, fecha_hecha, confirmada_isola, fecha_confirmada, marca, clientes(nombre_negocio, dia_visita)').eq('candidato', true).order('id'),
-    ]).then(([prodRes, visRes, cobRes, cliRes, snapRes, valRes, exhibRes]) => {
+      supabase.from('incentivo_suc10').select('vendedor, sucursal, puntos').eq('periodo', periodo).order('corte_fecha', { ascending: false }),
+    ]).then(([prodRes, visRes, cobRes, cliRes, snapRes, valRes, exhibRes, suc10Res]) => {
       const productos = prodRes.data || []
       const visitas = (visRes.data || []) as VisitaMin[]
       const cobros = cobRes.data || []
@@ -91,6 +94,14 @@ export default function Incentivo() {
         return (da === -1 ? 99 : da) - (db === -1 ? 99 : db)
       })
       setExhibiciones(exhibOrdenadas)
+
+      const vistos = new Set<string>()
+      const suc10Latest = ((suc10Res.data as unknown as Suc10Row[]) || []).filter(r => {
+        if (vistos.has(r.vendedor)) return false
+        vistos.add(r.vendedor)
+        return true
+      }).sort((a, b) => b.puntos - a.puntos)
+      setSuc10(suc10Latest)
 
       const valorPorCliente = new Map<number, number>()
       for (const v of (valRes.data || [])) {
@@ -186,6 +197,34 @@ export default function Incentivo() {
                 : `Vas ganando por ${(snapshot.territorio_propio ?? 0) - (snapshot.territorio_rival ?? 0)} puntos`}
             </p>
           </div>
+
+          {suc10.length > 0 && (
+            <div className="bg-slate-900 rounded-xl border border-slate-800 p-4">
+              <p className="font-semibold text-sm mb-2">📊 Posición de cada RDV — SUC10</p>
+              <div className="space-y-3">
+                {(['ISOLA MIRANDA', 'ISOLA CARACAS ESTE'] as const).map(suc => {
+                  const filasSuc = suc10.filter(r => r.sucursal === suc)
+                  const totalSuc = filasSuc.reduce((a, r) => a + r.puntos, 0)
+                  return (
+                    <div key={suc}>
+                      <div className="flex items-center justify-between text-xs text-slate-400 mb-1">
+                        <span className="font-medium">{suc === 'ISOLA MIRANDA' ? '🔵 Isola Miranda' : '🔴 Isola Caracas Este'}</span>
+                        <span>{totalSuc.toLocaleString()} pts</span>
+                      </div>
+                      <div className="space-y-1">
+                        {filasSuc.map((r, i) => (
+                          <div key={r.vendedor} className={`flex items-center justify-between text-sm rounded px-2 py-1 ${r.vendedor === 'DANIEL GUARAMATO' ? 'bg-violet-950/40 border border-violet-900/50' : ''}`}>
+                            <span className={r.vendedor === 'DANIEL GUARAMATO' ? 'text-violet-300 font-semibold' : 'text-slate-300'}>{i + 1}. {r.vendedor}</span>
+                            <span className="text-slate-400">{r.puntos.toLocaleString()}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
 
           <p className="text-xs text-amber-400/80 -mt-2">
             ⚠️ Datos del incentivo actualizados al {snapshot.corte_fecha?.split('-').reverse().join('/')} — pásame el Excel nuevo cuando lo tengas para actualizarlo.
