@@ -283,21 +283,6 @@ export default function RegistrarVisita() {
       nro_factura: facturaFinal || null,
       nro_documento_isola: form.nro_documento_isola || null,
     })
-    if (form.dias_credito > 0 && montoFinal > 0) {
-      const [y, m, d] = form.fecha.split('-').map(Number)
-      const venc = new Date(y, m - 1, d + form.dias_credito)
-      const fechaVenc = `${venc.getFullYear()}-${String(venc.getMonth()+1).padStart(2,'0')}-${String(venc.getDate()).padStart(2,'0')}`
-      await supabase.from('cobros').insert({
-        cliente_id: +form.cliente_id,
-        monto: montoFinal,
-        moneda: form.moneda,
-        descripcion: facturaFinal || `Pedido ${form.fecha}`,
-        nro_documento_isola: form.nro_documento_isola || null,
-        fecha_emision: form.fecha,
-        fecha_vencimiento: fechaVenc,
-        estado: 'pendiente',
-      })
-    }
     await supabase.from('clientes').update({ fecha_ultima_visita: form.fecha }).eq('id', +form.cliente_id)
     setSaving(false)
     if (resultadoFinal === 'visita_efectiva' && montoFinal > 0 && clienteSel?.telefono) {
