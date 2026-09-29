@@ -15,14 +15,15 @@
 
 ---
 
-## Sistema completo — componentes (actualizado 2026-06-10)
+## Sistema completo — componentes (actualizado 2026-09-29)
 
 ### CRM Web (Next.js + Supabase + Vercel)
-- Páginas: Dashboard, Clientes, Ficha de cliente (con Análisis IA vía Groq), Registrar Visita, Cobros, Despachos, Métricas, Catálogo, Guía diaria, **Rutero por guía (`/r/[numero_guia]`, pública, para choferes)**
+- Páginas: Dashboard, Clientes, Ficha de cliente (con Análisis IA vía Groq), Registrar Visita, Cobros (con vista "Cierre de mes"), Despachos, Métricas, Catálogo, Guía diaria, **Planificación** (plan mensual/semanal/diario con checklist), **Incentivo** (seguimiento en vivo del concurso Tren Verano Solidario 2026), **Rutero por guía (`/r/[numero_guia]`, pública, para choferes)**
 - PWA instalable, banner de alertas in-app por horario (6-9am, 9-11am cobros, 8-10pm)
-- Tablas Supabase: `clientes` (con `lat`/`lng` desde 2026-06-24), `visitas`, `cobros`, `push_subscriptions`, `metas` (con `meta_cajas`), `metas_variables`, `despachos`, `despacho_items`
+- Tablas Supabase: `clientes` (con `lat`/`lng`), `visitas`, `cobros` (con `origen`: `crm` o `isola_cxc`), `metas` (con `meta_cajas`), `metas_variables`, `despachos`, `despacho_items`, `planes_trabajo`, `incentivo_snapshot`, `incentivo_exhibiciones`, `incentivo_suc10`
+- `push_subscriptions` fue eliminada (2026-07-25, feature muerta sin uso — notificaciones van 100% por Telegram)
 - Cron jobs Vercel: notificaciones push **6am** (mensaje RDV diario), 10am, 9pm
-- Integración CXC ISOLA: 90 cobros importados (`origen='isola_cxc'`), numeración de facturas nueva (10000001+)
+- Integración CXC ISOLA: proceso repetible cada viernes (ver sesión 2026-09-29) — el CxC de ISOLA es ahora la **única fuente de cobros pendientes**; `/visita` ya no crea cobros automáticos (desde 2026-09-29)
 - Fix timezone UTC→Venezuela aplicado en dashboard y cobros
 
 ### Bot Telegram (@IsolaCRM_bot)
@@ -34,6 +35,27 @@
 
 ### Generador de Status WhatsApp
 - Script `generar_status.py` — imagen 1080x1080 con logo ISOLA + producto + precio
+
+---
+
+## Sesión 2026-09-29 — resumen de lo trabajado
+
+- **CxC ISOLA cargado (corte 25/09/2026)**: reconciliación completa — 1 pago real confirmado (JOSEPH BECEL DUBREUSE, doc A15012472, $11.76, ya no aparecía en el CxC nuevo → marcado pagado), ~23 documentos nuevos importados, saldos actualizados donde hubo abono parcial. Resultado: 93 pendientes en `isola_cxc`, $29,103.27. De paso se corrigieron 4 filas legacy duplicadas (formato de factura sin normalizar de antes de la regla de normalización) que se iban a marcar "pagado" por error — se borraron en vez de eso.
+- **Cliente nuevo detectado en el CxC**: MIR4591 ORLANDO ENRIQUE DAVILA JULIO (id=198), zona Caracas/La Cruz — agregado a `clientes`, sin `dia_visita` asignado todavía (pendiente).
+- **Cambio de flujo de cobros (decisión del usuario)**: como el CxC se actualiza todos los viernes, `/visita` **ya no crea un cobro automático** (`origen=crm`) al registrar una venta — eso duplicaba la misma factura que después entra por el CxC. La visita sigue guardando `nro_factura`/`monto_pedido`/productos para métricas, solo se quitó el `cobros.insert` de `guardar()` en `app/visita/page.tsx` (commit `3d1836f`, pusheado y desplegado). El dinero pendiente ahora vive 100% en el CxC.
+- **Limpieza de cobros `crm` pendientes**: de 82 pendientes (~$18,911), se borraron 20 que eran duplicado exacto de algo ya en el CxC (~$9,621). Los 62 restantes (~$9,290, facturas muy recientes que el CxC aún no alcanzaba a reflejar) se dejaron a propósito — se limpiarán solos el próximo viernes cuando el CxC los alcance.
+- **Tren Verano — corte revisado**: archivo nacional recibido con puntajes recalculados. Daniel Guaramato: ranking nacional #28 de 187 (bajó de #23, más competencia), pero el total subió de 2717.5 a **2805 pts**. Sigue **#1 de su grupo** (Miranda+Caracas Este) por amplio margen. A nivel territorio, Caracas Este le sigue ganando a Miranda en el comparativo (7,815 vs 7,250 pts). El archivo nacional solo trae puntaje agregado por vendedor, no el detalle de qué cliente contó para exhibiciones — ese detalle vive únicamente en el checklist propio del CRM (`incentivo_exhibiciones`): Osole 12 confirmados por ISOLA / 65 marcados hechos sin confirmar / 79 sin hacer; Renata 112 hechos / 0 confirmados / 44 sin hacer.
+- **Próximo concurso "Olé Q4" analizado (aún sin construir en el CRM)**: octubre-noviembre 2026, categoría Mayonesa Olé + Pizza+ Olé, canal venta directa. El premio que le aplica a Daniel es "mejor asesor del grupo" ($200, compite solo contra RDV de Miranda+Caracas Este, criterio: % activación sobre cartera). Dato preocupante: en el corte de Tren Verano su activación en esas 2 categorías está en 0 puntos (Pizza+ 3/105 clientes, Aderezos 15/105) — entra al concurso nuevo con poca base ganada ahí. El usuario pidió tener el análisis listo pero no construir nada todavía; avisará cuándo arrancar (previsiblemente 1 de octubre, al cerrar Tren Verano).
+
+---
+
+## Julio-septiembre 2026 — reconstruido desde `git log` (no se había actualizado este doc en ese rango)
+
+- **`/planificacion`** (desde 12/07): planes de trabajo mensual/semanal/diario, tabla `planes_trabajo`, checklist interactivo por ítem con barra de progreso.
+- **Cobros — "Cierre de mes"** (desde 29/07, corregido 18-22/08): pestaña en `/cobros` que separa la deuda pendiente en Grupo A (facturas >21 días) y Grupo B (cruzan los 21 días antes de fin de mes). Corregido bug de duplicado crm+isola_cxc; desde el 22/08 usa el CxC oficial de ISOLA como fuente en vez de los cobros manuales.
+- **`/incentivo` — Tren Verano Solidario 2026** (desde 03/08, evolución constante hasta hoy): trackea en vivo 4 productos clave de Venta Directa (Caramelos Alka, Osole BPC, Baterías GP, Ketchup Osole) vs cuota, dropsize, ranking nacional, comparativo de territorio Miranda vs Caracas Este, checklist de exhibiciones adicionales Osole (72 candidatos) y luego también Renata (72 más), distinción confirmada-por-ISOLA vs pendiente, facturación/cobranza oficial de ISOLA, y tabla de posición de cada RDV del grupo (`incentivo_suc10`).
+- **Conciliación CxC** (18/08): vista `/conciliacion` que cruza cobros propios vs CxC de ISOLA por cliente+monto±$2+fecha±15d.
+- Detalle completo de cada commit de este rango queda en la memoria de Claude (`project_isola_crm.md`, sección "Novedades julio-septiembre 2026").
 
 ---
 
@@ -50,6 +72,10 @@
 ---
 
 ## Pendiente / Ideas para continuar
+- [ ] Concurso Olé Q4: construir sección en `/incentivo` cuando el usuario avise que arranca (esperando su cuota individual de cajas Mayonesa/Pizza+, no viene en el PPTX del concurso)
+- [ ] Asignar `dia_visita` a MIR4591 Orlando Davila Julio (cliente nuevo detectado en el CxC del 25/09)
+- [ ] Revisar con ISOLA los 65 clientes de exhibiciones Osole marcados "hechos" que aún no confirman en el corte oficial (y las 112 de Renata, 0 confirmadas hasta ahora)
+- [ ] Los 62 cobros `crm` pendientes que no matchean el CxC (facturas muy recientes) se resuelven solos cuando el próximo CxC los alcance — no requiere acción, solo monitorear
 - [ ] FASE 4: Dashboard de métricas avanzadas (bajo demanda)
 - [x] Auth simple (PIN) para proteger el CRM web — ya existe (`components/PinGate.tsx`, PIN `1234`, se guarda en localStorage del dispositivo)
 - [ ] Foto de evidencia en visitas (Supabase Storage)
