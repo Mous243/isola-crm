@@ -101,7 +101,8 @@ Escribe un resumen de 2 a 3 líneas, en español, tono directo tipo reporte para
     })
     if (!res.ok) return { texto: null, debug: `Groq ${res.status}: ${(await res.text()).slice(0, 300)}` }
     const data = await res.json()
-    return { texto: data.choices?.[0]?.message?.content?.trim() || null }
+    const texto = data.choices?.[0]?.message?.content?.trim() || null
+    return texto ? { texto } : { texto: null, debug: `Groq 200 sin contenido: ${JSON.stringify(data).slice(0, 300)}` }
   } catch (e) {
     return { texto: null, debug: `Excepción: ${String(e)}` }
   }
