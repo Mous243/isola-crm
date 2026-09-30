@@ -74,9 +74,9 @@ async function generarResumen(datos: {
   totalVencido: number; countVencidas: number
   feriados: { fecha: string; nombre: string }[]
   vacaciones?: string
-}): Promise<string | null> {
+}): Promise<{ texto: string | null; debug?: string }> {
   const groqKey = (process.env.GROQ_API_KEY || '').replace(/^﻿/, '').trim()
-  if (!groqKey) return null
+  if (!groqKey) return { texto: null, debug: 'GROQ_API_KEY no configurada' }
 
   const prompt = `Eres un asistente que redacta el resumen inicial de un plan de trabajo mensual para un vendedor de campo de ISOLA Foods en Venezuela. Usa ÚNICAMENTE estos datos reales, no inventes cifras, eventos ni contexto adicional:
 
@@ -99,11 +99,11 @@ Escribe un resumen de 2 a 3 líneas, en español, tono directo tipo reporte para
         temperature: 0.4,
       }),
     })
-    if (!res.ok) return null
+    if (!res.ok) return { texto: null, debug: `Groq ${res.status}: ${(await res.text()).slice(0, 300)}` }
     const data = await res.json()
-    return data.choices?.[0]?.message?.content?.trim() || null
-  } catch {
-    return null
+    return { texto: data.choices?.[0]?.message?.content?.trim() || null }
+  } catch (e) {
+    return { texto: null, debug: `Excepción: ${String(e)}` }
   }
 }
 
@@ -168,7 +168,7 @@ export async function GET(req: Request) {
     const feriadosDelMes = feriadosVenezuela(year).filter(f => f.fecha >= fechaInicio && f.fecha <= fechaFin)
     const vacaciones = vacacionesEscolares(month)
 
-    const resumenIA = await generarResumen({
+    const { texto: resumenIA, debug: debugGroq } = await generarResumen({
       nombreMes: nombreMesTitulo, year,
       metaMonto: Number(metaRow?.meta_monto || 0), metaCobranza: Number(metaRow?.meta_cobranza || 0),
       metaCajas: Number(metaRow?.meta_cajas || 0), metaVisitas: Number(metaRow?.meta_visitas || 0),
@@ -225,7 +225,10 @@ export async function GET(req: Request) {
 
     await sendTelegram(`📅 Plan de trabajo de ${nombreMesTitulo} ${year} generado.\n\n${resumen}\n\nRevísalo completo en /planificacion.`)
 
-    return NextResponse.json({ ok: true, id: inserted.id, periodo, titulo: `Plan de Trabajo — ${nombreMesTitulo} ${year}`, resumen })
+    return NextResponse.json({
+      ok: true, id: inserted.id, periodo, titulo: `Plan de Trabajo — ${nombreMesTitulo} ${year}`, resumen,
+      ...(searchParams.get('debug') === '1' ? { debugGroq } : {}),
+    })
   } catch (e: unknown) {
     return NextResponse.json({ ok: false, error: String(e) }, { status: 500 })
   }
