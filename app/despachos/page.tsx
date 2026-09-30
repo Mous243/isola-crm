@@ -3,7 +3,10 @@ import { useEffect, useState } from 'react'
 import { supabase, type Despacho, type DespachoItem, type Cobro, type Visita } from '@/lib/supabase'
 
 const DIAS_CREDITO = 10
-const CUTOFF_PEDIDOS_PENDIENTES = '2026-07-01'
+// Reinicio de seguimiento de despachos: se dejó de arrastrar guías/pedidos viejos sin confirmar,
+// desde esta fecha se hace seguimiento limpio (decisión del usuario, 2026-09-29)
+const CUTOFF_DESPACHOS_VISIBLE = '2026-09-29'
+const CUTOFF_PEDIDOS_PENDIENTES = '2026-09-29'
 
 function sumarDias(fechaStr: string, dias: number) {
   const d = new Date(fechaStr + 'T00:00:00')
@@ -51,6 +54,7 @@ export default function Despachos() {
   const [copiadoId, setCopiadoId] = useState<number | null>(null)
   const [pedidosPendientes, setPedidosPendientes] = useState<Visita[]>([])
   const [telUltimoChofer, setTelUltimoChofer] = useState<Map<number, { telefono: string; fecha: string }>>(new Map())
+  const [mostrarGuiasAntiguas, setMostrarGuiasAntiguas] = useState(false)
 
   const copiarRutero = async (d: Despacho) => {
     const url = `https://isola-crm-web.vercel.app/r/${d.numero_guia}`
@@ -157,6 +161,10 @@ export default function Despachos() {
 
   const itemsDe = (despachoId: number) => items.filter(i => i.despacho_id === despachoId)
 
+  const guiasAntiguas = despachos.filter(d => d.fecha_guia < CUTOFF_DESPACHOS_VISIBLE)
+  const despachosVisibles = mostrarGuiasAntiguas ? despachos : despachos.filter(d => d.fecha_guia >= CUTOFF_DESPACHOS_VISIBLE)
+  const despachosFiltrados = filtrarDespachos(despachosVisibles, filtro)
+
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-bold text-violet-400">🚚 Despachos</h1>
@@ -215,13 +223,20 @@ export default function Despachos() {
         ))}
       </div>
 
-      {filtrarDespachos(despachos, filtro).length === 0 && (
+      {guiasAntiguas.length > 0 && (
+        <button onClick={() => setMostrarGuiasAntiguas(v => !v)}
+          className="text-xs text-slate-400 hover:text-slate-300 underline underline-offset-2">
+          {mostrarGuiasAntiguas ? '▲ ocultar guías antiguas' : `👁 ver ${guiasAntiguas.length} guía${guiasAntiguas.length > 1 ? 's' : ''} antigua${guiasAntiguas.length > 1 ? 's' : ''} (antes de ${CUTOFF_DESPACHOS_VISIBLE})`}
+        </button>
+      )}
+
+      {despachosFiltrados.length === 0 && (
         <div className="bg-slate-900 rounded-xl p-6 border border-slate-800 text-center text-slate-400 text-sm">
           {filtro === 'todos' ? 'Aún no hay guías cargadas. Envíame el PDF cada noche y yo la registro aquí.' : `No hay guías para ${filtro === 'hoy' ? 'hoy' : filtro === 'semana' ? 'esta semana' : 'este mes'}.`}
         </div>
       )}
 
-      {filtrarDespachos(despachos, filtro).map(d => {
+      {despachosFiltrados.map(d => {
         const its = itemsDe(d.id)
         const entregados = its.filter(i => i.estado === 'entregado').length
         return (
