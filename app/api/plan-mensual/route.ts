@@ -93,7 +93,7 @@ Escribe un resumen de 2 a 3 líneas, en español, tono directo tipo reporte para
       method: 'POST',
       headers: { Authorization: `Bearer ${groqKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: 'llama-3.1-8b-instant',
+        model: 'openai/gpt-oss-20b',
         messages: [{ role: 'user', content: prompt }],
         max_tokens: 220,
         temperature: 0.4,
