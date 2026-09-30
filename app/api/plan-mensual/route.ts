@@ -95,8 +95,10 @@ Escribe un resumen de 2 a 3 líneas, en español, tono directo tipo reporte para
       body: JSON.stringify({
         model: 'openai/gpt-oss-20b',
         messages: [{ role: 'user', content: prompt }],
-        max_tokens: 220,
+        max_tokens: 400,
         temperature: 0.4,
+        reasoning_effort: 'low',
+        include_reasoning: false,
       }),
     })
     if (!res.ok) return { texto: null, debug: `Groq ${res.status}: ${(await res.text()).slice(0, 300)}` }

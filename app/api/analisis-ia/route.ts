@@ -46,10 +46,12 @@ Analiza estas notas y responde en español con exactamente este formato (sin int
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'llama-3.1-8b-instant',
+      model: 'openai/gpt-oss-20b',
       messages: [{ role: 'user', content: prompt }],
-      max_tokens: 350,
+      max_tokens: 500,
       temperature: 0.3,
+      reasoning_effort: 'low',
+      include_reasoning: false,
     }),
   })
 
