@@ -15,16 +15,17 @@
 
 ---
 
-## Sistema completo — componentes (actualizado 2026-09-29)
+## Sistema completo — componentes (actualizado 2026-09-30)
 
 ### CRM Web (Next.js + Supabase + Vercel)
-- Páginas: Dashboard, Clientes, Ficha de cliente (con Análisis IA vía Groq), Registrar Visita, Cobros (con vista "Cierre de mes"), Despachos, Métricas, Catálogo, Guía diaria, **Planificación** (plan mensual/semanal/diario con checklist), **Incentivo** (seguimiento en vivo del concurso Tren Verano Solidario 2026), **Rutero por guía (`/r/[numero_guia]`, pública, para choferes)**
+- Páginas: Dashboard, Clientes, Ficha de cliente (con Análisis IA vía Groq), Registrar Visita, Cobros (con vista "Cierre de mes"), Despachos (arranque limpio desde 2026-09-29, ver sesión), Métricas, Catálogo, Guía diaria, **Planificación** (plan mensual autogenerado cada mes vía `/api/plan-mensual` + semanal/diario manual, con checklist), **Incentivo** (seguimiento en vivo del concurso Tren Verano Solidario 2026), **Rutero por guía (`/r/[numero_guia]`, pública, para choferes)**
 - PWA instalable, banner de alertas in-app por horario (6-9am, 9-11am cobros, 8-10pm)
-- Tablas Supabase: `clientes` (con `lat`/`lng`), `visitas`, `cobros` (con `origen`: `crm` o `isola_cxc`), `metas` (con `meta_cajas`), `metas_variables`, `despachos`, `despacho_items`, `planes_trabajo`, `incentivo_snapshot`, `incentivo_exhibiciones`, `incentivo_suc10`
+- Tablas Supabase: `clientes` (con `lat`/`lng`), `visitas`, `cobros` (con `origen`: `crm` o `isola_cxc`), `metas` (con `meta_cajas`), `metas_variables`, `despachos`, `despacho_items`, `planes_trabajo`, `incentivo_snapshot`, `incentivo_exhibiciones`, `incentivo_suc10` — RLS habilitado en todas (desde 2026-09-30)
 - `push_subscriptions` fue eliminada (2026-07-25, feature muerta sin uso — notificaciones van 100% por Telegram)
-- Cron jobs Vercel: notificaciones push **6am** (mensaje RDV diario), 10am, 9pm
+- Cron jobs Vercel: `/api/notify` diario (resumen 9pm + recordatorio de guía), `/api/plan-mensual` día 1 de cada mes 6am Caracas (nuevo, 2026-09-30)
 - Integración CXC ISOLA: proceso repetible cada viernes (ver sesión 2026-09-29) — el CxC de ISOLA es ahora la **única fuente de cobros pendientes**; `/visita` ya no crea cobros automáticos (desde 2026-09-29)
 - Fix timezone UTC→Venezuela aplicado en dashboard y cobros
+- IA vía Groq (Análisis IA + resumen de plan mensual) usa modelo `openai/gpt-oss-20b` (cambiado 2026-09-30, el anterior `llama-3.1-8b-instant` dejó de estar disponible en la cuenta)
 
 ### Bot Telegram (@IsolaCRM_bot)
 - Reemplazó al bot de WhatsApp (`isola-bot`, eliminado de PM2 el 2026-06-07)
@@ -35,6 +36,21 @@
 
 ### Generador de Status WhatsApp
 - Script `generar_status.py` — imagen 1080x1080 con logo ISOLA + producto + precio
+
+---
+
+## Sesión 2026-09-30 — resumen de lo trabajado
+
+- **Despachos: reinicio limpio desde hoy**: había decenas de guías viejas (desde junio) sin confirmar entrega, generando ruido. Se agregó `CUTOFF_DESPACHOS_VISIBLE = '2026-09-29'` en `app/despachos/page.tsx` — las guías/pedidos sin despachar anteriores a esa fecha quedan ocultos por defecto (siguen intactos en Supabase, no se borraron), con un toggle "ver guías antiguas" para consultarlos. Mismo patrón que ya existía para el CxC viejo en `/cobros`. Commit `c6cac85`.
+- **Plan mensual automático (nueva ruta `/api/plan-mensual`)**: el usuario pidió que la pestaña "Mes" de `/planificacion` deje de mostrar el plan de julio congelado y se regenere cada mes solo. Se construyó una ruta con cron en Vercel (`0 10 1 * *`, día 1 de cada mes 6am Caracas) que arma el plan de forma **determinista** (meta del mes o la anterior como referencia, cartera vencida con top deudores, despachos pendientes, cartera activa, incentivo vigente, feriados de Venezuela calculados con la fórmula de Pascua — no de memoria) y usa Groq **solo** para redactar el párrafo de resumen a partir de esos datos reales (instruido a no inventar nada). Envía aviso por Telegram al generarse. Commits `c9b0ad4`, `1632265`, `37528fa`, `e2854a9`, `aeb8e3d`.
+  - Ya se generó y quedó en producción el plan de **Octubre 2026** (id 16 en `planes_trabajo`).
+  - **Bug encontrado de paso**: el modelo de Groq `llama-3.1-8b-instant` ya no está disponible en la cuenta (404 model_not_found). Esto también rompía en silencio el "Análisis IA" de la ficha de cliente (`app/api/analisis-ia/route.ts`), llevaba tiempo devolviendo `null` sin avisar. Se cambiaron ambas rutas a `openai/gpt-oss-20b` — es un modelo "razonador", necesita `reasoning_effort: 'low'` e `include_reasoning: false` en el body o manda la respuesta al campo `reasoning` en vez de `content`.
+  - La ruta soporta `?periodo=YYYY-MM`, `?force=1` y `?debug=1` (expone el motivo si Groq falla, sin persistirlo en la BD) para pruebas manuales.
+- **Chequeo general de seguridad/performance del CRM** (a pedido del usuario): usando los advisors de Supabase + `npm audit`.
+  - **RLS estaba deshabilitado en 6 tablas** (`incentivo_productos`, `metas_variables`, `incentivo_snapshot`, `incentivo_suc10`, `planes_trabajo`, `incentivo_exhibiciones`) — ya se habilitó con una política `anon_all_<tabla>` (FOR ALL USING true) igual a la que ya tenían el resto de las tablas, así que no cambió el comportamiento de la app (verificado con curl directo al REST de Supabase, sigue en 200). Adevisors de seguridad ahora en `[]`.
+  - Se agregaron los 3 índices de foreign key que faltaban (`cobros.cliente_id`, `despacho_items.cobro_id`, `incentivo_exhibiciones.cliente_id`).
+  - Next.js actualizado de `16.2.6` a `^16.3.7` (`npm install next@16.3.7`) — corrige 1 vulnerabilidad crítica (RCE, no aplicaba directo en Vercel pero sí otras: SSRF, DoS por SVG, confusión de caché) y varias altas. **Pendiente**: quedó interrumpida la verificación (`tsc`/`build`) y el commit+push por una falla transitoria del clasificador de permisos de shell — falta retomar esto la próxima sesión antes de dar por cerrado el upgrade.
+  - PIN de `PinGate.tsx` (`1234`) sigue siendo solo cosmético (vive en localStorage del navegador, no protege el backend) — se le explicó al usuario que la seguridad real depende de RLS + que nadie filtre la anon key, no del PIN.
 
 ---
 
@@ -72,12 +88,14 @@
 ---
 
 ## Pendiente / Ideas para continuar
+- [ ] **Retomar upgrade de Next.js**: `npm install next@16.3.7` ya corrió (package.json en `^16.3.7`), pero falta correr `tsc`/`build` para confirmar que no rompió nada y hacer commit+push — quedó interrumpido por una falla transitoria del clasificador de permisos de shell (2026-09-30)
+- [ ] Cargar la meta oficial de octubre en `metas` (periodo `2026-10`) — el plan mensual de octubre usó la de agosto como referencia porque todavía no estaba cargada
 - [ ] Concurso Olé Q4: construir sección en `/incentivo` cuando el usuario avise que arranca (esperando su cuota individual de cajas Mayonesa/Pizza+, no viene en el PPTX del concurso)
 - [ ] Asignar `dia_visita` a MIR4591 Orlando Davila Julio (cliente nuevo detectado en el CxC del 25/09)
 - [ ] Revisar con ISOLA los 65 clientes de exhibiciones Osole marcados "hechos" que aún no confirman en el corte oficial (y las 112 de Renata, 0 confirmadas hasta ahora)
 - [ ] Los 62 cobros `crm` pendientes que no matchean el CxC (facturas muy recientes) se resuelven solos cuando el próximo CxC los alcance — no requiere acción, solo monitorear
 - [ ] FASE 4: Dashboard de métricas avanzadas (bajo demanda)
-- [x] Auth simple (PIN) para proteger el CRM web — ya existe (`components/PinGate.tsx`, PIN `1234`, se guarda en localStorage del dispositivo)
+- [x] Auth simple (PIN) para proteger el CRM web — ya existe (`components/PinGate.tsx`, PIN `1234`, se guarda en localStorage del dispositivo). Nota (2026-09-30): es solo un filtro cosmético, no seguridad real — la seguridad real depende de RLS en Supabase (ya habilitado en todas las tablas) y de que la anon key no se filtre
 - [ ] Foto de evidencia en visitas (Supabase Storage)
 - [ ] Importar clientes desde CSV
 - [ ] Modo offline mejorado (service worker)
