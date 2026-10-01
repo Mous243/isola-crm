@@ -50,6 +50,21 @@ const ACTIVACION_KEYWORDS: [string, string[]][] = [
   ['Osole - Compotas 150g', ['compota']],
 ]
 
+const ORDEN_DIAS = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes']
+
+function agruparPorDia<T extends { dia_visita?: string }>(items: T[]): [string, T[]][] {
+  const grupos = new Map<string, T[]>()
+  for (const item of items) {
+    const dia = item.dia_visita || 'sin día'
+    if (!grupos.has(dia)) grupos.set(dia, [])
+    grupos.get(dia)!.push(item)
+  }
+  return [...grupos.entries()].sort((a, b) => {
+    const ia = ORDEN_DIAS.indexOf(a[0]), ib = ORDEN_DIAS.indexOf(b[0])
+    return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib)
+  })
+}
+
 function matchVolumen(visitas: VisitaMin[], kws: string[]) {
   let volumen = 0
   const clientes = new Set<number>()
@@ -250,22 +265,26 @@ export default function Incentivo() {
                 </div>
 
                 {expandidoOle === keyAct && (
-                  <div className="border-t border-slate-800 pt-2 max-h-56 overflow-y-auto space-y-1">
+                  <div className="border-t border-slate-800 pt-2 max-h-56 overflow-y-auto">
                     {item.activos.length === 0 && <p className="text-xs text-slate-500">Ninguno todavía este mes.</p>}
-                    {item.activos.map(c => (
-                      <div key={c.id} className="flex justify-between text-sm">
-                        <span className="text-slate-300 truncate">{c.nombre_negocio}</span>
-                        <span className="text-xs text-slate-500 shrink-0 ml-2">{c.dia_visita || 'sin día'}</span>
+                    {agruparPorDia(item.activos).map(([dia, clientes]) => (
+                      <div key={dia} className="mb-2 last:mb-0">
+                        <p className="text-[10px] uppercase tracking-wide text-slate-500 mb-1">{dia} · {clientes.length}</p>
+                        {clientes.map(c => (
+                          <div key={c.id} className="text-sm text-slate-300 truncate py-0.5">{c.nombre_negocio}</div>
+                        ))}
                       </div>
                     ))}
                   </div>
                 )}
                 {expandidoOle === keyInact && (
-                  <div className="border-t border-slate-800 pt-2 max-h-56 overflow-y-auto space-y-1">
-                    {item.inactivos.map(c => (
-                      <div key={c.id} className="flex justify-between text-sm">
-                        <span className="text-slate-300 truncate">{c.nombre_negocio}</span>
-                        <span className="text-xs text-slate-500 shrink-0 ml-2">{c.dia_visita || 'sin día'}</span>
+                  <div className="border-t border-slate-800 pt-2 max-h-56 overflow-y-auto">
+                    {agruparPorDia(item.inactivos).map(([dia, clientes]) => (
+                      <div key={dia} className="mb-2 last:mb-0">
+                        <p className="text-[10px] uppercase tracking-wide text-slate-500 mb-1">{dia} · {clientes.length}</p>
+                        {clientes.map(c => (
+                          <div key={c.id} className="text-sm text-slate-300 truncate py-0.5">{c.nombre_negocio}</div>
+                        ))}
                       </div>
                     ))}
                   </div>
