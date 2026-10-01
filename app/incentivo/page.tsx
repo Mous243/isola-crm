@@ -5,6 +5,16 @@ import { supabase, type IncentivoProducto } from '@/lib/supabase'
 function hoy() { return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Caracas' }) }
 function periodoActual() { return hoy().slice(0, 7) }
 
+// Tren Verano cerro en septiembre pero el resultado final (trofeo) todavia no llega del coordinador.
+// Se oculta todo lo de Tren Verano sin borrar nada; cuando el usuario traiga el corte final se vuelve a
+// activar (y esa seccion pasa a mostrarse como el trofeo ganado, no como incentivo en curso).
+const MOSTRAR_TREN_VERANO = false
+
+const OLE_Q4_SKUS: [string, string[]][] = [
+  ['Mayonesa Olé', ['mayonesa ole']],
+  ['Pizza+ Olé', ['pizza']],
+]
+
 function puntosTabulador(pvar: number): number {
   if (pvar > 100) return 150
   if (pvar < 10) return 0
@@ -18,6 +28,7 @@ type Dropsize = { nombre: string; volumen: number; clientesActivos: number; drop
 type Categoria = { nombre: string; kws: string[]; clientesActivos: number; oportunidad: ClienteMin[] }
 type Exhibicion = { id: number; cliente_id: number; hecha: boolean; fecha_hecha: string | null; confirmada_isola: boolean; fecha_confirmada: string | null; marca: 'osole' | 'renata'; clientes: { nombre_negocio: string; dia_visita: string | null } | null }
 type Suc10Row = { vendedor: string; sucursal: string; puntos: number }
+type OleQ4Item = { nombre: string; cuota: number; logro: number; activos: ClienteMin[]; inactivos: ClienteMin[] }
 type Snapshot = {
   puesto_nacional: number | null; total_rdv: number | null; puntos_totales: number | null
   territorio_propio: number | null; territorio_rival: number | null; territorio_rival_nombre: string | null
@@ -67,7 +78,9 @@ export default function Incentivo() {
   const [exhibExpandido, setExhibExpandido] = useState(false)
   const [exhibExpandidoRenata, setExhibExpandidoRenata] = useState(false)
   const [suc10, setSuc10] = useState<Suc10Row[]>([])
-  const [oleQ4, setOleQ4] = useState<{ mayonesa: number; pizza: number; cartera: number } | null>(null)
+  const [oleQ4, setOleQ4] = useState<OleQ4Item[]>([])
+  const [oleQ4Cartera, setOleQ4Cartera] = useState(0)
+  const [expandidoOle, setExpandidoOle] = useState<string | null>(null)
 
   useEffect(() => {
     const periodo = periodoActual()
@@ -138,9 +151,17 @@ export default function Incentivo() {
       })
       setCategorias(cats)
 
-      const mayonesaOle = matchVolumen(visitas, ['mayonesa ole'])
-      const pizzaOle = matchVolumen(visitas, ['pizza'])
-      setOleQ4({ mayonesa: mayonesaOle.clientesActivos, pizza: pizzaOle.clientesActivos, cartera: clientesData.length })
+      const oleItems: OleQ4Item[] = OLE_Q4_SKUS.map(([nombre, kws]) => {
+        const cuotaRow = productos.find(p => p.producto === nombre)
+        const { volumen, idsActivos } = matchVolumen(visitas, kws)
+        const activos = clientesData.filter(c => idsActivos.has(c.id))
+        const inactivos = clientesData
+          .filter(c => !idsActivos.has(c.id))
+          .sort((a, b) => (valorPorCliente.get(b.id) || 0) - (valorPorCliente.get(a.id) || 0))
+        return { nombre, cuota: cuotaRow?.base_cuota ?? 50, logro: volumen, activos, inactivos }
+      })
+      setOleQ4(oleItems)
+      setOleQ4Cartera(clientesData.length)
 
       const facturado = cobros.reduce((a, c) => a + Number(c.monto), 0)
       const cobrado = cobros.filter(c => c.estado === 'pagado').reduce((a, c) => a + Number(c.monto), 0)
@@ -173,40 +194,89 @@ export default function Incentivo() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-bold text-violet-400">🏆 Incentivo — Tren Verano Solidario 2026</h1>
+      <h1 className="text-2xl font-bold text-violet-400">🏆 Incentivo</h1>
 
-      {oleQ4 && (
-        <div className="bg-amber-950/20 rounded-xl border border-amber-900/50 p-4 space-y-3">
+      {oleQ4.length > 0 && (
+        <div className="space-y-2">
           <div className="flex items-center justify-between gap-2">
-            <p className="font-semibold text-sm text-amber-400">🍅 Concurso Olé Q4 — Oct-Nov 2026</p>
+            <h2 className="text-sm font-semibold text-amber-400">🍅 Concurso Olé Q4 — Oct-Nov 2026</h2>
             <span className="text-[11px] bg-amber-900/40 text-amber-300 px-2 py-1 rounded-full shrink-0">$200 · Grupo Miranda+Caracas Este</span>
           </div>
           <p className="text-xs text-slate-400">
-            Premio &quot;mejor asesor del grupo&quot;: 80% volumen (40% Mayonesa + 40% Pizza+) + 20% activación (10% cada uno) sobre tu cartera activa.
+            Premio &quot;mejor asesor del grupo&quot;: 80% volumen (40% c/u) + 20% activación (10% c/u) sobre tu cartera activa ({oleQ4Cartera} clientes). Cuota tentativa mientras ISOLA confirma la real.
           </p>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <p className="text-xs text-slate-500">% Activación Mayonesa Olé</p>
-              <p className="text-lg font-bold text-amber-300">
-                {oleQ4.mayonesa}/{oleQ4.cartera}
-                <span className="text-xs font-normal text-slate-500"> ({oleQ4.cartera > 0 ? ((oleQ4.mayonesa / oleQ4.cartera) * 100).toFixed(0) : 0}%)</span>
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-slate-500">% Activación Pizza+ Olé</p>
-              <p className="text-lg font-bold text-amber-300">
-                {oleQ4.pizza}/{oleQ4.cartera}
-                <span className="text-xs font-normal text-slate-500"> ({oleQ4.cartera > 0 ? ((oleQ4.pizza / oleQ4.cartera) * 100).toFixed(0) : 0}%)</span>
-              </p>
-            </div>
-          </div>
-          <p className="text-[11px] text-amber-400/80">
-            ⚠️ Falta tu cuota individual de cajas (80% del puntaje) — pídesela a tu coordinador para calcular el % de cumplimiento de volumen.
-          </p>
+
+          {oleQ4.map(item => {
+            const pctCumpl = item.cuota > 0 ? (item.logro / item.cuota) * 100 : 0
+            const pctActiv = oleQ4Cartera > 0 ? (item.activos.length / oleQ4Cartera) * 100 : 0
+            const keyAct = `${item.nombre}-activos`
+            const keyInact = `${item.nombre}-inactivos`
+            return (
+              <div key={item.nombre} className="bg-slate-900 rounded-xl border border-slate-800 p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="font-semibold text-sm">{item.nombre}</p>
+                  <span className="text-xs text-slate-500">cuota tentativa: {item.cuota} cajas</span>
+                </div>
+
+                <div>
+                  <div className="flex justify-between text-xs text-slate-400 mb-1">
+                    <span>Volumen: <strong className="text-slate-200">{item.logro}</strong> / {item.cuota} cajas</span>
+                    <span className={pctCumpl >= 100 ? 'text-green-400' : 'text-amber-400'}>{pctCumpl.toFixed(0)}%</span>
+                  </div>
+                  <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                    <div className="h-full bg-amber-500 rounded-full transition-all" style={{ width: `${Math.min(pctCumpl, 100)}%` }} />
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex justify-between text-xs text-slate-400 mb-1">
+                    <span>Activación: <strong className="text-slate-200">{item.activos.length}</strong> / {oleQ4Cartera} clientes</span>
+                    <span className="text-blue-400">{pctActiv.toFixed(0)}%</span>
+                  </div>
+                  <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                    <div className="h-full bg-blue-500 rounded-full transition-all" style={{ width: `${Math.min(pctActiv, 100)}%` }} />
+                  </div>
+                </div>
+
+                <div className="flex gap-2">
+                  <button onClick={() => setExpandidoOle(expandidoOle === keyAct ? null : keyAct)}
+                    className="flex-1 text-xs bg-green-950/40 hover:bg-green-900/40 text-green-400 border border-green-900/50 rounded-lg py-1.5">
+                    ✅ {item.activos.length} activados
+                  </button>
+                  <button onClick={() => setExpandidoOle(expandidoOle === keyInact ? null : keyInact)}
+                    className="flex-1 text-xs bg-red-950/30 hover:bg-red-900/30 text-red-400 border border-red-900/50 rounded-lg py-1.5">
+                    ❌ {item.inactivos.length} sin activar
+                  </button>
+                </div>
+
+                {expandidoOle === keyAct && (
+                  <div className="border-t border-slate-800 pt-2 max-h-56 overflow-y-auto space-y-1">
+                    {item.activos.length === 0 && <p className="text-xs text-slate-500">Ninguno todavía este mes.</p>}
+                    {item.activos.map(c => (
+                      <div key={c.id} className="flex justify-between text-sm">
+                        <span className="text-slate-300 truncate">{c.nombre_negocio}</span>
+                        <span className="text-xs text-slate-500 shrink-0 ml-2">{c.dia_visita || 'sin día'}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {expandidoOle === keyInact && (
+                  <div className="border-t border-slate-800 pt-2 max-h-56 overflow-y-auto space-y-1">
+                    {item.inactivos.map(c => (
+                      <div key={c.id} className="flex justify-between text-sm">
+                        <span className="text-slate-300 truncate">{c.nombre_negocio}</span>
+                        <span className="text-xs text-slate-500 shrink-0 ml-2">{c.dia_visita || 'sin día'}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )
+          })}
         </div>
       )}
 
-      {snapshot && (
+      {MOSTRAR_TREN_VERANO && snapshot && (
         <>
           <div className="bg-slate-900 rounded-xl border border-slate-800 p-4">
             <div className="flex items-center justify-between">
@@ -294,9 +364,9 @@ export default function Incentivo() {
 
       {cargando && <p className="text-sm text-slate-500">Cargando...</p>}
 
-      {!cargando && (
+      {!cargando && MOSTRAR_TREN_VERANO && (
         <>
-          {filas.length > 0 ? (
+          {filas.length > 0 && (
             <>
               <div className="bg-violet-950/30 rounded-xl p-4 border border-violet-900/50 flex items-center justify-between">
                 <span className="text-sm font-semibold text-violet-300">🎯 Total puntos de volumen (mes)</span>
@@ -322,10 +392,6 @@ export default function Incentivo() {
                 ))}
               </div>
             </>
-          ) : (
-            <div className="bg-slate-900 rounded-xl p-4 border border-slate-800 text-center text-slate-500 text-sm">
-              Sin cuotas de volumen cargadas para este mes (Tren Verano cerró en septiembre).
-            </div>
           )}
 
           <div className="bg-slate-900 rounded-xl border border-slate-800 p-4">
