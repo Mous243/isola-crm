@@ -294,31 +294,39 @@ export default function Incentivo() {
 
       {cargando && <p className="text-sm text-slate-500">Cargando...</p>}
 
-      {!cargando && filas.length > 0 && (
+      {!cargando && (
         <>
-          <div className="bg-violet-950/30 rounded-xl p-4 border border-violet-900/50 flex items-center justify-between">
-            <span className="text-sm font-semibold text-violet-300">🎯 Total puntos de volumen (mes)</span>
-            <span className="text-2xl font-bold text-violet-300">{totalPuntos}</span>
-          </div>
-
-          <div className="space-y-2">
-            {filas.map(f => (
-              <div key={f.id} className="bg-slate-900 rounded-xl border border-slate-800 p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="font-semibold text-sm">{f.producto}</p>
-                  <span className="text-xs bg-slate-800 px-2 py-1 rounded-full text-slate-300">{f.puntos} pts</span>
-                </div>
-                <div className="flex justify-between text-xs text-slate-400 mb-1">
-                  <span>Logro: <strong className="text-slate-200">{f.logro}</strong> / base {f.base_cuota}</span>
-                  <span className={f.pvar >= 0 ? 'text-green-400' : 'text-red-400'}>{f.pvar >= 0 ? '+' : ''}{f.pvar.toFixed(0)}%</span>
-                </div>
-                <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden">
-                  <div className="h-full bg-violet-500 rounded-full transition-all"
-                    style={{ width: `${Math.min(Math.max((f.logro / (f.base_cuota || 1)) * 100, 0), 100)}%` }} />
-                </div>
+          {filas.length > 0 ? (
+            <>
+              <div className="bg-violet-950/30 rounded-xl p-4 border border-violet-900/50 flex items-center justify-between">
+                <span className="text-sm font-semibold text-violet-300">🎯 Total puntos de volumen (mes)</span>
+                <span className="text-2xl font-bold text-violet-300">{totalPuntos}</span>
               </div>
-            ))}
-          </div>
+
+              <div className="space-y-2">
+                {filas.map(f => (
+                  <div key={f.id} className="bg-slate-900 rounded-xl border border-slate-800 p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="font-semibold text-sm">{f.producto}</p>
+                      <span className="text-xs bg-slate-800 px-2 py-1 rounded-full text-slate-300">{f.puntos} pts</span>
+                    </div>
+                    <div className="flex justify-between text-xs text-slate-400 mb-1">
+                      <span>Logro: <strong className="text-slate-200">{f.logro}</strong> / base {f.base_cuota}</span>
+                      <span className={f.pvar >= 0 ? 'text-green-400' : 'text-red-400'}>{f.pvar >= 0 ? '+' : ''}{f.pvar.toFixed(0)}%</span>
+                    </div>
+                    <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                      <div className="h-full bg-violet-500 rounded-full transition-all"
+                        style={{ width: `${Math.min(Math.max((f.logro / (f.base_cuota || 1)) * 100, 0), 100)}%` }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : (
+            <div className="bg-slate-900 rounded-xl p-4 border border-slate-800 text-center text-slate-500 text-sm">
+              Sin cuotas de volumen cargadas para este mes (Tren Verano cerró en septiembre).
+            </div>
+          )}
 
           <div className="bg-slate-900 rounded-xl border border-slate-800 p-4">
             <p className="font-semibold text-sm mb-2">💰 Cobranza del mes (acelerador +100 pts si estás Top 10 nacional)</p>
