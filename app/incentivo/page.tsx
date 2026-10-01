@@ -67,6 +67,7 @@ export default function Incentivo() {
   const [exhibExpandido, setExhibExpandido] = useState(false)
   const [exhibExpandidoRenata, setExhibExpandidoRenata] = useState(false)
   const [suc10, setSuc10] = useState<Suc10Row[]>([])
+  const [oleQ4, setOleQ4] = useState<{ mayonesa: number; pizza: number; cartera: number } | null>(null)
 
   useEffect(() => {
     const periodo = periodoActual()
@@ -137,6 +138,10 @@ export default function Incentivo() {
       })
       setCategorias(cats)
 
+      const mayonesaOle = matchVolumen(visitas, ['mayonesa ole'])
+      const pizzaOle = matchVolumen(visitas, ['pizza'])
+      setOleQ4({ mayonesa: mayonesaOle.clientesActivos, pizza: pizzaOle.clientesActivos, cartera: clientesData.length })
+
       const facturado = cobros.reduce((a, c) => a + Number(c.monto), 0)
       const cobrado = cobros.filter(c => c.estado === 'pagado').reduce((a, c) => a + Number(c.monto), 0)
       setCobranza({ facturado, cobrado })
@@ -169,6 +174,37 @@ export default function Incentivo() {
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-bold text-violet-400">🏆 Incentivo — Tren Verano Solidario 2026</h1>
+
+      {oleQ4 && (
+        <div className="bg-amber-950/20 rounded-xl border border-amber-900/50 p-4 space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <p className="font-semibold text-sm text-amber-400">🍅 Concurso Olé Q4 — Oct-Nov 2026</p>
+            <span className="text-[11px] bg-amber-900/40 text-amber-300 px-2 py-1 rounded-full shrink-0">$200 · Grupo Miranda+Caracas Este</span>
+          </div>
+          <p className="text-xs text-slate-400">
+            Premio &quot;mejor asesor del grupo&quot;: 80% volumen (40% Mayonesa + 40% Pizza+) + 20% activación (10% cada uno) sobre tu cartera activa.
+          </p>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <p className="text-xs text-slate-500">% Activación Mayonesa Olé</p>
+              <p className="text-lg font-bold text-amber-300">
+                {oleQ4.mayonesa}/{oleQ4.cartera}
+                <span className="text-xs font-normal text-slate-500"> ({oleQ4.cartera > 0 ? ((oleQ4.mayonesa / oleQ4.cartera) * 100).toFixed(0) : 0}%)</span>
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-500">% Activación Pizza+ Olé</p>
+              <p className="text-lg font-bold text-amber-300">
+                {oleQ4.pizza}/{oleQ4.cartera}
+                <span className="text-xs font-normal text-slate-500"> ({oleQ4.cartera > 0 ? ((oleQ4.pizza / oleQ4.cartera) * 100).toFixed(0) : 0}%)</span>
+              </p>
+            </div>
+          </div>
+          <p className="text-[11px] text-amber-400/80">
+            ⚠️ Falta tu cuota individual de cajas (80% del puntaje) — pídesela a tu coordinador para calcular el % de cumplimiento de volumen.
+          </p>
+        </div>
+      )}
 
       {snapshot && (
         <>
