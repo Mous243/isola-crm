@@ -96,6 +96,7 @@ export default function Incentivo() {
   const [oleQ4, setOleQ4] = useState<OleQ4Item[]>([])
   const [oleQ4Cartera, setOleQ4Cartera] = useState(0)
   const [expandidoOle, setExpandidoOle] = useState<string | null>(null)
+  const [guiaOleAbierta, setGuiaOleAbierta] = useState(true)
 
   useEffect(() => {
     const periodo = periodoActual()
@@ -210,6 +211,36 @@ export default function Incentivo() {
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-bold text-violet-400">🏆 Incentivo</h1>
+
+      {oleQ4.length > 0 && (
+        <div className="bg-slate-900 rounded-xl border border-slate-800 overflow-hidden">
+          <button onClick={() => setGuiaOleAbierta(!guiaOleAbierta)} className="w-full flex items-center justify-between p-4 text-left hover:bg-slate-800/40">
+            <p className="font-semibold text-sm text-amber-400">📖 Cómo ganar el Olé Q4</p>
+            <span className="text-slate-500">{guiaOleAbierta ? '▲' : '▼'}</span>
+          </button>
+          {guiaOleAbierta && (
+            <div className="border-t border-slate-800 p-4 space-y-3 text-sm text-slate-300">
+              <div>
+                <p className="font-semibold text-slate-200 mb-1">El premio</p>
+                <p>$200 a &quot;mejor asesor del grupo&quot;. Compites solo contra los RDV de tu grupo (Miranda + Caracas Este) — hay 12 grupos a nivel nacional, 1 premio por grupo. Corte semanal todos los viernes, cierre de ventas válidas 30 de noviembre, resultado y pago en diciembre.</p>
+              </div>
+              <div>
+                <p className="font-semibold text-slate-200 mb-1">Cómo se calcula tu puntaje</p>
+                <p>Son 2 productos, cada uno vale lo mismo: <strong>Mayonesa Olé</strong> y <strong>Pizza+ Olé</strong>. En cada uno, el 80% del puntaje es cuánto vendes (volumen vs. cuota) y el 20% es a cuántos clientes se lo activaste (% de tu cartera que compró ese producto este mes). O sea: vender mucho a pocos clientes suma menos que venderle un poco a muchos clientes distintos.</p>
+              </div>
+              <div>
+                <p className="font-semibold text-slate-200 mb-1">Qué hacer en cada visita</p>
+                <ul className="list-disc list-inside space-y-1">
+                  <li>Ofrece Mayonesa Olé <strong>y</strong> Pizza Olé en cada cliente, no solo lo que te pida — cualquier pedido nuevo de alguno de los 2 este mes ya lo activa.</li>
+                  <li>Si el cliente ya compró este mes, en la próxima visita empuja más cantidad o el otro producto que le falta — eso sube volumen sin gastar una activación nueva.</li>
+                  <li>Antes de salir a ruta, revisa abajo la lista <strong className="text-red-400">❌ sin activar</strong> de tu día — son a los que les falta, van primero.</li>
+                  <li><strong>Cuidado:</strong> solo cuenta la marca Olé. Mayonesa Osole o Pizza Osole no suman para este concurso aunque sea casi lo mismo.</li>
+                </ul>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {oleQ4.length > 0 && (
         <div className="space-y-2">
