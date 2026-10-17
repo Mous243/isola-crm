@@ -10,9 +10,22 @@ function periodoActual() { return hoy().slice(0, 7) }
 // activar (y esa seccion pasa a mostrarse como el trofeo ganado, no como incentivo en curso).
 const MOSTRAR_TREN_VERANO = false
 
-const OLE_Q4_SKUS: [string, string[]][] = [
-  ['Mayonesa Olé', ['mayonesa ole']],
-  ['Pizza+ Olé', ['pizza']],
+// Concurso Olé Q4 VD (PDF primer avance 16/10/2026): cuenta por CÓDIGO de producto, no por nombre
+// (la caja CSPL001 "salsa de tomate" trae la palabra pizza pero NO es Pizza+). Cada `grupo` distinto
+// de un cliente es 1 activación: Mayonesa 170g/340g = 1 sola; Pizza+ = hasta 5 (mixta, tradicional, maíz, jamón, pepperoni).
+const OLE_Q4_SKUS: { nombre: string; productos: Record<string, { label: string; grupo: string }> }[] = [
+  { nombre: 'Mayonesa Olé', productos: {
+    'SPAOLE007': { label: 'Mayonesa 170g', grupo: 'mayonesa' },
+    'OLE-6-22-51': { label: 'Mayonesa 340g', grupo: 'mayonesa' },
+  } },
+  { nombre: 'Pizza+ Olé', productos: {
+    'SPL003': { label: 'Tradicional 200g', grupo: 'tradicional' },
+    'SPL012': { label: 'Tradicional 300g', grupo: 'tradicional' },
+    '1573': { label: 'Tradicional 340g (por confirmar)', grupo: 'tradicional' },
+    'SPL006': { label: 'Maíz', grupo: 'maiz' },
+    'SPL007': { label: 'Jamón', grupo: 'jamon' },
+    'CSPL002': { label: 'Caja mixta maíz/jamón/pepperoni (por confirmar)', grupo: 'mixta' },
+  } },
 ]
 
 function puntosTabulador(pvar: number): number {
@@ -22,13 +35,13 @@ function puntosTabulador(pvar: number): number {
 }
 
 type Fila = IncentivoProducto & { logro: number; pvar: number; puntos: number }
-type VisitaMin = { cliente_id: number; productos_pedidos: { nombre?: string; cajas?: number }[] | null }
+type VisitaMin = { cliente_id: number; productos_pedidos: { nombre?: string; codigo?: string; cajas?: number }[] | null }
 type ClienteMin = { id: number; nombre_negocio: string; dia_visita?: string }
 type Dropsize = { nombre: string; volumen: number; clientesActivos: number; dropsize: number }
 type Categoria = { nombre: string; kws: string[]; clientesActivos: number; oportunidad: ClienteMin[] }
 type Exhibicion = { id: number; cliente_id: number; hecha: boolean; fecha_hecha: string | null; confirmada_isola: boolean; fecha_confirmada: string | null; marca: 'osole' | 'renata'; clientes: { nombre_negocio: string; dia_visita: string | null } | null }
 type Suc10Row = { vendedor: string; sucursal: string; puntos: number }
-type OleQ4Item = { nombre: string; cuota: number; logro: number; activos: ClienteMin[]; inactivos: ClienteMin[] }
+type OleQ4Item = { nombre: string; cuota: number; logro: number; activaciones: number; activos: ClienteMin[]; inactivos: ClienteMin[]; detalle: Record<number, string> }
 type Snapshot = {
   puesto_nacional: number | null; total_rdv: number | null; puntos_totales: number | null
   territorio_propio: number | null; territorio_rival: number | null; territorio_rival_nombre: string | null
@@ -79,6 +92,27 @@ function matchVolumen(visitas: VisitaMin[], kws: string[]) {
     }
   }
   return { volumen, clientesActivos: clientes.size, idsActivos: clientes }
+}
+
+function matchOleQ4(visitas: VisitaMin[], productos: Record<string, { label: string; grupo: string }>) {
+  let cajas = 0
+  const grupos = new Map<number, Set<string>>()
+  const labels = new Map<number, Set<string>>()
+  for (const v of visitas) {
+    for (const item of v.productos_pedidos || []) {
+      const p = item.codigo ? productos[item.codigo] : undefined
+      if (!p) continue
+      cajas += item.cajas || 0
+      if (!grupos.has(v.cliente_id)) { grupos.set(v.cliente_id, new Set()); labels.set(v.cliente_id, new Set()) }
+      grupos.get(v.cliente_id)!.add(p.grupo)
+      labels.get(v.cliente_id)!.add(p.label)
+    }
+  }
+  let activaciones = 0
+  grupos.forEach(g => { activaciones += g.size })
+  const detalle: Record<number, string> = {}
+  labels.forEach((l, id) => { detalle[id] = [...l].join(' · ') })
+  return { cajas, activaciones, ids: new Set(grupos.keys()), detalle }
 }
 
 export default function Incentivo() {
@@ -167,14 +201,14 @@ export default function Incentivo() {
       })
       setCategorias(cats)
 
-      const oleItems: OleQ4Item[] = OLE_Q4_SKUS.map(([nombre, kws]) => {
+      const oleItems: OleQ4Item[] = OLE_Q4_SKUS.map(({ nombre, productos: skus }) => {
         const cuotaRow = productos.find(p => p.producto === nombre)
-        const { volumen, idsActivos } = matchVolumen(visitas, kws)
-        const activos = clientesData.filter(c => idsActivos.has(c.id))
+        const { cajas, activaciones, ids, detalle } = matchOleQ4(visitas, skus)
+        const activos = clientesData.filter(c => ids.has(c.id))
         const inactivos = clientesData
-          .filter(c => !idsActivos.has(c.id))
+          .filter(c => !ids.has(c.id))
           .sort((a, b) => (valorPorCliente.get(b.id) || 0) - (valorPorCliente.get(a.id) || 0))
-        return { nombre, cuota: cuotaRow?.base_cuota ?? 50, logro: volumen, activos, inactivos }
+        return { nombre, cuota: cuotaRow?.base_cuota ?? 50, logro: cajas, activaciones, activos, inactivos, detalle }
       })
       setOleQ4(oleItems)
       setOleQ4Cartera(clientesData.length)
@@ -226,7 +260,7 @@ export default function Incentivo() {
               </div>
               <div>
                 <p className="font-semibold text-slate-200 mb-1">Cómo se calcula tu puntaje</p>
-                <p>Son 2 productos, cada uno vale lo mismo: <strong>Mayonesa Olé</strong> y <strong>Pizza+ Olé</strong>. En cada uno, el 80% del puntaje es cuánto vendes (volumen vs. cuota) y el 20% es a cuántos clientes se lo activaste (% de tu cartera que compró ese producto este mes). O sea: vender mucho a pocos clientes suma menos que venderle un poco a muchos clientes distintos.</p>
+                <p>Son 2 productos, cada uno vale lo mismo: <strong>Mayonesa Olé</strong> y <strong>Pizza+ Olé</strong>. Según el PDF de ISOLA (16/10), en cada uno la activación pesa 40% (0.40 pts por activación) y el volumen 10% (0.10 pts por caja). Mayonesa: cada cliente cuenta 1 activación, sea 170g o 340g. Pizza+: cada producto distinto cuenta como 1 activación (caja mixta, tradicional 200g/300g, maíz, jamón, pepperoni), así que un mismo cliente puede darte hasta 5. O sea: activar clientes vale 4 veces más que vender cajas.</p>
               </div>
               <div>
                 <p className="font-semibold text-slate-200 mb-1">Qué hacer en cada visita</p>
@@ -234,7 +268,7 @@ export default function Incentivo() {
                   <li>Ofrece Mayonesa Olé <strong>y</strong> Pizza Olé en cada cliente, no solo lo que te pida — cualquier pedido nuevo de alguno de los 2 este mes ya lo activa.</li>
                   <li>Si el cliente ya compró este mes, en la próxima visita empuja más cantidad o el otro producto que le falta — eso sube volumen sin gastar una activación nueva.</li>
                   <li>Antes de salir a ruta, revisa abajo la lista <strong className="text-red-400">❌ sin activar</strong> de tu día — son a los que les falta, van primero.</li>
-                  <li><strong>Cuidado:</strong> solo cuenta la marca Olé. Mayonesa Osole o Pizza Osole no suman para este concurso aunque sea casi lo mismo.</li>
+                  <li><strong>Cuidado:</strong> solo cuenta la marca Olé. Mayonesa Osole o Pizza Osole no suman para este concurso aunque sea casi lo mismo. Tampoco cuenta la caja de salsa de tomate mixta (boloñesa/napolitana/pizza/tradicional, CSPL001).</li>
                 </ul>
               </div>
             </div>
@@ -249,7 +283,7 @@ export default function Incentivo() {
             <span className="text-[11px] bg-amber-900/40 text-amber-300 px-2 py-1 rounded-full shrink-0">$200 · Grupo Miranda+Caracas Este</span>
           </div>
           <p className="text-xs text-slate-400">
-            Premio &quot;mejor asesor del grupo&quot;: 80% volumen (40% c/u) + 20% activación (10% c/u) sobre tu cartera activa ({oleQ4Cartera} clientes). Cuota tentativa mientras ISOLA confirma la real.
+            Premio &quot;mejor asesor del grupo&quot;: por producto, activación 40% (0.40 pts c/u) + volumen 10% (0.10 pts por caja), sobre tu cartera activa ({oleQ4Cartera} clientes). Conteo estimado desde tus pedidos del CRM; el oficial es el de ISOLA. Cuota tentativa mientras ISOLA confirma la real.
           </p>
 
           {oleQ4.map(item => {
@@ -276,8 +310,8 @@ export default function Incentivo() {
 
                 <div>
                   <div className="flex justify-between text-xs text-slate-400 mb-1">
-                    <span>Activación: <strong className="text-slate-200">{item.activos.length}</strong> / {oleQ4Cartera} clientes</span>
-                    <span className="text-blue-400">{pctActiv.toFixed(0)}%</span>
+                    <span>Activación: <strong className="text-slate-200">{item.activaciones}</strong> activaciones en {item.activos.length} / {oleQ4Cartera} clientes</span>
+                    <span className="text-blue-400">{pctActiv.toFixed(0)}% · {(item.activaciones * 0.4 + item.logro * 0.1).toFixed(1)} pts</span>
                   </div>
                   <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden">
                     <div className="h-full bg-blue-500 rounded-full transition-all" style={{ width: `${Math.min(pctActiv, 100)}%` }} />
@@ -302,7 +336,10 @@ export default function Incentivo() {
                       <div key={dia} className="mb-2 last:mb-0">
                         <p className="text-[10px] uppercase tracking-wide text-slate-500 mb-1">{dia} · {clientes.length}</p>
                         {clientes.map(c => (
-                          <div key={c.id} className="text-sm text-slate-300 truncate py-0.5">{c.nombre_negocio}</div>
+                          <div key={c.id} className="py-0.5">
+                            <p className="text-sm text-slate-300 truncate">{c.nombre_negocio}</p>
+                            {item.detalle[c.id] && <p className="text-[11px] text-slate-500 truncate">{item.detalle[c.id]}</p>}
+                          </div>
                         ))}
                       </div>
                     ))}
