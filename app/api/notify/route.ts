@@ -29,13 +29,14 @@ async function buildPayload() {
 
   if (h >= 20 && h < 22) {
     const { data: visitas } = await supabase
-      .from('visitas').select('resultado, monto_pedido').eq('fecha', hoy())
+      .from('visitas').select('resultado, productos_pedidos').eq('fecha', hoy())
     const total = visitas?.length || 0
-    const conPedido = visitas?.filter((v: { resultado: string; monto_pedido?: number }) => v.resultado === 'visita_efectiva' && (v.monto_pedido || 0) > 0).length || 0
-    const monto = visitas?.reduce((a: number, v: { monto_pedido?: number }) => a + (v.monto_pedido || 0), 0) || 0
+    const conPedido = visitas?.filter(v => v.resultado === 'visita_efectiva' && (v.productos_pedidos?.length || 0) > 0).length || 0
+    const cajas = visitas?.reduce((a: number, v: { productos_pedidos?: { cajas?: number }[] }) =>
+      a + (v.productos_pedidos || []).reduce((s, p) => s + (p.cajas || 0), 0), 0) || 0
     return {
       title: '🌙 Resumen del día — ISOLA CRM',
-      body: `${conPedido}/${total} visitas con pedido · $${monto.toFixed(0)} total\n\n📦 ¿Ya te llegó la guía de despacho de hoy? Pásamela por aquí para registrarla en /despachos.`,
+      body: `${conPedido}/${total} visitas con pedido · ${cajas} cajas\n\n📦 ¿Ya te llegó la guía de despacho de hoy? Pásamela por aquí para registrarla en /despachos.`,
     }
   }
 

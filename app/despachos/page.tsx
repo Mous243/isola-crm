@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { supabase, type Despacho, type DespachoItem, type Cobro, type Visita } from '@/lib/supabase'
+import { supabase, tienePedido, cajasVisita, type Despacho, type DespachoItem, type Cobro, type Visita } from '@/lib/supabase'
 
 const DIAS_CREDITO = 10
 // Reinicio de seguimiento de despachos: se dejó de arrastrar guías/pedidos viejos sin confirmar,
@@ -73,11 +73,11 @@ export default function Despachos() {
 
     const { data: vis } = await supabase.from('visitas')
       .select('*, clientes(nombre_negocio, propietario, telefono)')
-      .eq('resultado', 'visita_efectiva').gt('monto_pedido', 0)
+      .eq('resultado', 'visita_efectiva')
       .eq('confirmado_sin_guia', false)
       .gte('fecha', CUTOFF_PEDIDOS_PENDIENTES).order('fecha', { ascending: false })
     const fechaGuiaPorDespacho = new Map((d || []).map(x => [x.id, x.fecha_guia]))
-    const pendientes = (vis || []).filter(v => !(it || []).some(i =>
+    const pendientes = (vis || []).filter(tienePedido).filter(v => !(it || []).some(i =>
       i.cliente_id === v.cliente_id && (fechaGuiaPorDespacho.get(i.despacho_id) ?? '') >= v.fecha
     ))
     setPedidosPendientes(pendientes)
@@ -187,7 +187,7 @@ export default function Despachos() {
               <div key={v.id} className={`flex items-center justify-between gap-2 bg-slate-900/60 rounded-lg px-3 py-2 text-sm ${barra}`}>
                 <div className="min-w-0">
                   <p className="truncate">{(v.clientes as any)?.nombre_negocio}</p>
-                  <p className="text-xs text-slate-400">{v.fecha} · {v.moneda} {Number(v.monto_pedido).toFixed(2)} · {dias}d</p>
+                  <p className="text-xs text-slate-400">{v.fecha} · {cajasVisita(v)} cj · {dias}d</p>
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">
                   {telCliente && (

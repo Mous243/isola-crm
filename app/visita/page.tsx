@@ -6,11 +6,11 @@ import ClienteFichaModal from '@/components/ClienteFichaModal'
 
 type LineaPedido = { nombre: string; codigo?: string; cajas: number; precio_caja: number; subtotal: number; imagen_url?: string }
 
-function waConfirmacionPedido(cliente: Cliente, monto: number, moneda: string, lineas: LineaPedido[], nroFactura: string | null) {
+function waConfirmacionPedido(cliente: Cliente, lineas: LineaPedido[], nroFactura: string | null) {
   const nombre = cliente.propietario || cliente.nombre_negocio
   const detalle = lineas.length > 0 ? `: ${lineas.map(l => `${l.cajas} cj ${l.nombre}`).join(', ')}` : ''
   const factura = nroFactura ? ` (factura ${nroFactura})` : ''
-  const msg = `Hola ${nombre}, te confirmo que tu pedido de hoy quedó registrado${detalle}, por un total de ${moneda} ${monto.toFixed(2)}${factura}. Lo estaremos despachando según lo acordado. ¡Gracias por seguir confiando en nosotros! 🙌 — Guaramato, ISOLA`
+  const msg = `Hola ${nombre}, te confirmo que tu pedido de hoy quedó registrado${detalle}${factura}. Lo estaremos despachando según lo acordado. ¡Gracias por seguir confiando en nosotros! 🙌 — Guaramato, ISOLA`
   return `https://wa.me/${(cliente.telefono || '').replace('+', '')}?text=${encodeURIComponent(msg)}`
 }
 
@@ -57,7 +57,6 @@ export default function RegistrarVisita() {
     resultado: 'visita_efectiva',
     resultado_otro: '',
     moneda: 'USD',
-    monto_manual: 0,
     notas_visita: '',
     dias_credito: 21,
     nro_factura: '',
@@ -71,7 +70,6 @@ export default function RegistrarVisita() {
   const [siguienteCliente, setSiguienteCliente] = useState<Cliente | null>(null)
   const [confirmacionWA, setConfirmacionWA] = useState<{ telefono: string; link: string } | null>(null)
   const [visitadosIds, setVisitadosIds] = useState<Set<number>>(new Set())
-  const [montoHoy, setMontoHoy] = useState(0)
   const [mostrarRuta, setMostrarRuta] = useState(false)
   const [productosFrecuentes, setProductosFrecuentes] = useState<{ nombre: string; codigo?: string; veces: number }[]>([])
   const [tab, setTab] = useState<'registrar' | 'historial'>('registrar')
@@ -81,7 +79,7 @@ export default function RegistrarVisita() {
   const [expandidoH, setExpandidoH] = useState<number | null>(null)
   const [filtroResultado, setFiltroResultado] = useState<string>('todos')
   const [editVisita, setEditVisita] = useState<Visita | null>(null)
-  const [editForm, setEditForm] = useState({ resultado: '', resultado_otro: '', monto_pedido: 0, notas_visita: '', dias_credito: 21, nro_factura: '' })
+  const [editForm, setEditForm] = useState({ resultado: '', resultado_otro: '', notas_visita: '', dias_credito: 21, nro_factura: '' })
   const [editCantidades, setEditCantidades] = useState<Record<string, number>>({})
   const [editCatSel, setEditCatSel] = useState('Todas')
   const [editBusquedaProd, setEditBusquedaProd] = useState('')
@@ -143,18 +141,16 @@ export default function RegistrarVisita() {
           if (c) setForm(f => ({ ...f, cliente_id: preClienteId }))
         }
         if (lista.length > 0) {
-          supabase.from('visitas').select('cliente_id, monto_pedido')
+          supabase.from('visitas').select('cliente_id')
             .eq('fecha', form.fecha)
             .in('cliente_id', lista.map(c => c.id))
             .then(({ data }) => {
               const vs = data || []
               setVisitasHoy(vs.length)
               setVisitadosIds(new Set(vs.map((v: any) => v.cliente_id)))
-              setMontoHoy(vs.reduce((a: number, v: any) => a + (v.monto_pedido || 0), 0))
             })
         } else {
           setVisitadosIds(new Set())
-          setMontoHoy(0)
         }
       })
   }, [form.fecha])
@@ -246,7 +242,6 @@ export default function RegistrarVisita() {
       const cajas = cantidades[p.nombre]
       return { nombre: p.nombre, codigo: p.codigo, cajas, precio_caja: p.precio_caja || 0, subtotal: cajas * (p.precio_caja || 0), imagen_url: (p as Producto & { imagen_url?: string }).imagen_url }
     })
-  const totalCalculado = lineas.reduce((a, l) => a + l.subtotal, 0)
 
   const tieneProductos = lineas.length > 0
   useEffect(() => {
@@ -270,13 +265,12 @@ export default function RegistrarVisita() {
       return alert(`La factura ${facturaFinal} ya está registrada. Verifica el número.`)
     }
     setSaving(true)
-    const montoFinal = form.monto_manual || totalCalculado
     await supabase.from('visitas').insert({
       cliente_id: +form.cliente_id,
       fecha: form.fecha,
       resultado: resultadoFinal,
       moneda: form.moneda,
-      monto_pedido: montoFinal,
+      monto_pedido: 0,
       productos_pedidos: lineas.length > 0 ? lineas : [],
       notas_visita: form.notas_visita,
       dias_credito: form.dias_credito,
@@ -285,10 +279,10 @@ export default function RegistrarVisita() {
     })
     await supabase.from('clientes').update({ fecha_ultima_visita: form.fecha }).eq('id', +form.cliente_id)
     setSaving(false)
-    if (resultadoFinal === 'visita_efectiva' && montoFinal > 0 && clienteSel?.telefono) {
+    if (resultadoFinal === 'visita_efectiva' && lineas.length > 0 && clienteSel?.telefono) {
       setConfirmacionWA({
         telefono: clienteSel.telefono,
-        link: waConfirmacionPedido(clienteSel, montoFinal, form.moneda, lineas, facturaFinal || null),
+        link: waConfirmacionPedido(clienteSel, lineas, facturaFinal || null),
       })
     } else {
       setConfirmacionWA(null)
@@ -296,7 +290,6 @@ export default function RegistrarVisita() {
     setOk(true)
     setVisitasHoy(v => v + 1)
     setVisitadosIds(prev => new Set(prev).add(+form.cliente_id))
-    setMontoHoy(m => m + (form.resultado === 'visita_efectiva' ? totalCalculado || form.monto_manual : 0))
     setCantidades({})
     const idxActual = clientes.findIndex(c => String(c.id) === form.cliente_id)
     const siguiente = clientes[idxActual + 1] || null
@@ -304,7 +297,7 @@ export default function RegistrarVisita() {
     if (facturaFinal) {
       setProximaFactura(String(parseInt(facturaFinal, 10) + 1))
     }
-    setForm(f => ({ ...f, notas_visita: '', monto_manual: 0, resultado: 'visita_efectiva', resultado_otro: '', nro_factura: '', nro_documento_isola: '' }))
+    setForm(f => ({ ...f, notas_visita: '', resultado: 'visita_efectiva', resultado_otro: '', nro_factura: '', nro_documento_isola: '' }))
   }
 
   const cargarHistorial = async (fecha: string) => {
@@ -326,7 +319,6 @@ export default function RegistrarVisita() {
     setEditForm({
       resultado: RESULTADO_LABEL[v.resultado] ? v.resultado : 'otro',
       resultado_otro: RESULTADO_LABEL[v.resultado] ? '' : v.resultado,
-      monto_pedido: v.monto_pedido || 0,
       notas_visita: v.notas_visita || '',
       dias_credito: (v as Visita & { dias_credito?: number }).dias_credito || 21,
       nro_factura: (v as Visita & { nro_factura?: string }).nro_factura || '',
@@ -349,10 +341,8 @@ export default function RegistrarVisita() {
     const editLineas: LineaPedido[] = productos
       .filter(p => (editCantidades[p.nombre] || 0) > 0)
       .map(p => ({ nombre: p.nombre, codigo: p.codigo, cajas: editCantidades[p.nombre], precio_caja: p.precio_caja || 0, subtotal: editCantidades[p.nombre] * (p.precio_caja || 0), imagen_url: (p as Producto & { imagen_url?: string }).imagen_url }))
-    const editTotal = editLineas.reduce((a, l) => a + l.subtotal, 0)
     await supabase.from('visitas').update({
       resultado: resultadoFinal,
-      monto_pedido: editForm.monto_pedido || editTotal,
       productos_pedidos: editLineas,
       notas_visita: editForm.notas_visita,
       dias_credito: editForm.dias_credito,
@@ -408,7 +398,7 @@ export default function RegistrarVisita() {
         <div className="bg-slate-900 rounded-xl border border-slate-800 overflow-hidden">
           <button onClick={() => setMostrarRuta(v => !v)}
             className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-slate-300 hover:bg-slate-800/50">
-            <span>🗺️ Ruta del día · {visitasHoy}/{clientes.length} visitados{montoHoy > 0 && ` · $${montoHoy.toFixed(2)}`}</span>
+            <span>🗺️ Ruta del día · {visitasHoy}/{clientes.length} visitados</span>
             <span className="text-slate-500 text-xs">{mostrarRuta ? '▲ ocultar' : '▼ ver'}</span>
           </button>
           {mostrarRuta && (
@@ -517,12 +507,6 @@ export default function RegistrarVisita() {
               </div>
             )}
             <label className="block">
-              <span className="text-xs text-slate-400">Monto (USD)</span>
-              <input type="number" step="0.01" min={0} value={editForm.monto_pedido}
-                onChange={e => setEditForm(f => ({ ...f, monto_pedido: +e.target.value }))}
-                className="w-full mt-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm" />
-            </label>
-            <label className="block">
               <span className="text-xs text-slate-400">Notas</span>
               <textarea value={editForm.notas_visita} onChange={e => setEditForm(f => ({ ...f, notas_visita: e.target.value }))}
                 rows={2} className="w-full mt-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm" />
@@ -612,7 +596,7 @@ export default function RegistrarVisita() {
                             {v.clientes?.codigo_cliente && <span className="text-xs text-violet-400 font-mono">{v.clientes.codigo_cliente}</span>}
                           </div>
                           <span className={`text-xs px-2 py-0.5 rounded-full shrink-0 ${rColor}`}>{rLabel}</span>
-                          {(v.monto_pedido || 0) > 0 && <span className="text-xs text-violet-400 shrink-0">${Number(v.monto_pedido).toFixed(2)}</span>}
+                          {((v.productos_pedidos || []) as LineaPedido[]).length > 0 && <span className="text-xs text-violet-400 shrink-0">{((v.productos_pedidos || []) as LineaPedido[]).reduce((a, l) => a + l.cajas, 0)} cj</span>}
                           <span className="text-slate-500 ml-1">{expandidoH === v.id ? '▲' : '▼'}</span>
                         </button>
                         {expandidoH === v.id && (
@@ -791,7 +775,7 @@ export default function RegistrarVisita() {
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <p className="text-xs text-slate-400">Productos pedidos</p>
-                  {lineas.length > 0 && <span className="text-xs text-violet-400 font-medium">{lineas.length} seleccionado{lineas.length !== 1 ? 's' : ''} · ${totalCalculado.toFixed(2)}</span>}
+                  {lineas.length > 0 && <span className="text-xs text-violet-400 font-medium">{lineas.length} seleccionado{lineas.length !== 1 ? 's' : ''} · {lineas.reduce((a, l) => a + l.cajas, 0)} cj</span>}
                 </div>
                 <input
                   value={busquedaProd}
@@ -825,7 +809,7 @@ export default function RegistrarVisita() {
                           </p>
                           <div className="flex items-center mt-1.5 gap-2">
                             <span className="text-xs text-slate-400 flex-1">
-                              {qty > 0 ? `Solicitado: ${qty} x $${(p.precio_caja || 0).toFixed(2)}` : `$${(p.precio_caja || 0).toFixed(2)} / caja`}
+                              {qty > 0 ? `Solicitado: ${qty} cj` : 'Cajas'}
                             </span>
                             <div className="flex items-center gap-1 shrink-0">
                               <button onClick={() => setCaja(p.nombre, qty - 1)}
@@ -890,14 +874,6 @@ export default function RegistrarVisita() {
                 <p className="text-[11px] text-slate-500 mt-1">El número que ISOLA asigna en su sistema — puedes dejarlo en blanco y agregarlo después.</p>
               </div>
             )}
-
-            <label className="block">
-              <span className="text-xs text-slate-400">Monto total (USD) — editar si es diferente</span>
-              <input type="number" step="0.01" min={0}
-                value={form.monto_manual || totalCalculado}
-                onChange={e => setForm({ ...form, monto_manual: +e.target.value })}
-                className="w-full mt-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm" />
-            </label>
 
             <label className="block">
               <span className="text-xs text-slate-400">Notas de la visita</span>

@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { supabase } from '@/lib/supabase'
+import { supabase, tienePedido, cajasVisita } from '@/lib/supabase'
 import Link from 'next/link'
 
 type Stats = { total: number; con_pedido: number; sin_pedido: number; monto: number }
@@ -45,7 +45,7 @@ function AlertaBanner({ stats, cobrosUrgentes, sinVisitar, loaded }: {
     noche: stats.total === 0 ? null : {
       icon: '🌙', color: 'border-blue-500/40 bg-blue-900/20',
       title: 'Resumen del día',
-      msg: `${stats.con_pedido}/${stats.total} visitas con pedido · $${stats.monto.toFixed(0)} total`,
+      msg: `${stats.con_pedido}/${stats.total} visitas con pedido · ${stats.monto} cajas`,
     },
   }[tipo]
 
@@ -76,19 +76,19 @@ export default function Dashboard() {
 
   useEffect(() => {
     Promise.all([
-      supabase.from('visitas').select('resultado, monto_pedido, notas_visita, clientes(nombre_negocio)').eq('fecha', hoy),
+      supabase.from('visitas').select('resultado, monto_pedido, productos_pedidos, notas_visita, clientes(nombre_negocio)').eq('fecha', hoy),
       supabase.from('cobros').select('*, clientes(nombre_negocio, telefono)').eq('estado', 'pendiente').lte('fecha_vencimiento', en3)
         .or(`origen.neq.isola_cxc,fecha_vencimiento.gte.${hoy}`).order('fecha_vencimiento'),
       supabase.from('clientes').select('id, nombre_negocio, fecha_ultima_visita').eq('status', 'activo').or(`fecha_ultima_visita.is.null,fecha_ultima_visita.lt.${hace7}`).order('fecha_ultima_visita', { nullsFirst: true }),
     ]).then(([v, c, s]) => {
       const vs = v.data || []
       setVisitasHoy(vs)
-      const conPedido = vs.filter((x: any) => x.resultado === 'visita_efectiva' && (x.monto_pedido || 0) > 0).length
+      const conPedido = vs.filter(tienePedido).length
       setStats({
         total: vs.length,
         con_pedido: conPedido,
         sin_pedido: vs.length - conPedido,
-        monto: vs.reduce((a: number, x: any) => a + (x.monto_pedido || 0), 0),
+        monto: vs.reduce((a: number, x: any) => a + cajasVisita(x), 0),
       })
       setCobrosUrgentes(c.data || [])
       setSinVisitar(s.data || [])
@@ -109,7 +109,7 @@ export default function Dashboard() {
           { label: 'Visitas hoy', value: stats.total, color: 'text-blue-400' },
           { label: 'Con pedido', value: stats.con_pedido, color: 'text-green-400' },
           { label: 'Sin pedido', value: stats.sin_pedido, color: 'text-red-400' },
-          { label: 'Monto USD', value: `$${stats.monto.toFixed(2)}`, color: 'text-violet-400' },
+          { label: 'Cajas', value: `${stats.monto}`, color: 'text-violet-400' },
         ].map(m => (
           <div key={m.label} className="bg-slate-900 rounded-xl p-4 border border-slate-800">
             <p className={`text-2xl font-bold ${m.color}`}>{m.value}</p>
@@ -174,12 +174,12 @@ export default function Dashboard() {
             </div>
           : visitasHoy.map((v: any, i: number) => (
               <div key={i} className="flex items-center gap-3 py-2 border-b border-slate-800 last:border-0">
-                <span className="text-lg">{v.resultado === 'visita_efectiva' && (v.monto_pedido || 0) > 0 ? '✅' : '❌'}</span>
+                <span className="text-lg">{tienePedido(v) ? '✅' : '❌'}</span>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate">{(v.clientes as any)?.nombre_negocio}</p>
                   {v.notas_visita && <p className="text-xs text-slate-400 truncate">{v.notas_visita}</p>}
                 </div>
-                <span className="text-sm text-violet-400 shrink-0">${(v.monto_pedido || 0).toFixed(2)}</span>
+                <span className="text-sm text-violet-400 shrink-0">{cajasVisita(v)} cj</span>
               </div>
             ))
         }

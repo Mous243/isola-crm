@@ -50,6 +50,12 @@ export type Visita = {
   clientes?: { nombre_negocio: string; propietario?: string }
 }
 
+// Una visita "con pedido" es efectiva y trae productos (el monto ya no se captura; vive en el CxC)
+export const cajasVisita = (v: { productos_pedidos?: object[] | null }) =>
+  ((v.productos_pedidos || []) as { cajas?: number }[]).reduce((a, l) => a + (l.cajas || 0), 0)
+export const tienePedido = (v: { resultado?: string; productos_pedidos?: object[] | null; monto_pedido?: number | null }) =>
+  v.resultado === 'visita_efectiva' && ((v.productos_pedidos?.length || 0) > 0 || (v.monto_pedido || 0) > 0)
+
 export type Cobro = {
   id: number
   cliente_id: number

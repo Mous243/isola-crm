@@ -12,7 +12,7 @@ export async function POST(req: Request) {
 
   const notasTexto = notasConTexto
     .slice(0, 10)
-    .map((v: any) => `- ${v.fecha} (${v.resultado}, $${v.monto_pedido || 0}): "${v.notas_visita}"`)
+    .map((v: any) => `- ${v.fecha} (${v.resultado}): "${v.notas_visita}"`)
     .join('\n')
 
   const prompt = `Eres un asistente de ventas para un vendedor de campo de ISOLA Foods Venezuela. Tu trabajo es ayudar al vendedor a resolver situaciones con sus clientes antes de la visita.

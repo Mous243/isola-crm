@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { supabase, type Cliente, type Visita, type Producto } from '@/lib/supabase'
+import { supabase, tienePedido, cajasVisita, type Cliente, type Visita, type Producto } from '@/lib/supabase'
 
 const CATS_CATALOG_ORDER = [
   'Compotas', 'Galletas', 'Pastas', 'Salsas OLE', 'Condimentos',
@@ -28,7 +28,7 @@ function ejemploProducto(cat: string, catalog: Producto[]): string {
 }
 
 function analizar(visitas: Visita[], catalog: Producto[]) {
-  const conPedido = visitas.filter(v => (v.monto_pedido || 0) > 0)
+  const conPedido = visitas.filter(tienePedido)
   if (!conPedido.length) {
     return { sinCompra: true, visitasTotal: visitas.length, catsCompradas: new Set<string>(), catsFaltantes: [] as string[], ticketProm: 0, productosTop: [] as string[] }
   }
@@ -43,7 +43,7 @@ function analizar(visitas: Visita[], catalog: Producto[]) {
     }
   }
   const catsFaltantes = CATS_CATALOG_ORDER.filter(c => !catsCompradas.has(c)).slice(0, 4)
-  const ticketProm = conPedido.reduce((a, v) => a + (v.monto_pedido || 0), 0) / conPedido.length
+  const ticketProm = conPedido.reduce((a, v) => a + cajasVisita(v), 0) / conPedido.length
   const productosTop = Object.entries(prodCount).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([n]) => n)
   return { sinCompra: false, visitasTotal: visitas.length, catsCompradas, catsFaltantes, ticketProm, productosTop }
 }
@@ -181,8 +181,8 @@ export default function ClienteFichaModal({ clienteId, onClose }: Props) {
                         <p className="text-xs text-slate-500">compras</p>
                       </div>
                       <div className="bg-slate-900/60 rounded-lg p-2.5 flex-1 text-center">
-                        <p className="text-lg font-bold text-green-400">${analisis.ticketProm.toFixed(0)}</p>
-                        <p className="text-xs text-slate-500">ticket prom.</p>
+                        <p className="text-lg font-bold text-green-400">{analisis.ticketProm.toFixed(1)}</p>
+                        <p className="text-xs text-slate-500">cajas/pedido</p>
                       </div>
                       <div className="bg-slate-900/60 rounded-lg p-2.5 flex-1 text-center">
                         <p className="text-lg font-bold text-blue-400">{analisis.catsCompradas.size}</p>
@@ -235,7 +235,7 @@ export default function ClienteFichaModal({ clienteId, onClose }: Props) {
                   ? <p className="text-slate-500 text-sm">Sin visitas registradas.</p>
                   : <div className="space-y-2">
                       {visitas.slice(0, 5).map(v => {
-                        const conPedido = (v.monto_pedido || 0) > 0
+                        const conPedido = tienePedido(v)
                         const prods = (v.productos_pedidos as any[]) || []
                         return (
                           <div key={v.id} className={`rounded-lg p-3 border-l-4 ${conPedido ? 'bg-green-950/30 border-l-green-500' : 'bg-slate-800/50 border-l-slate-600'}`}>
@@ -246,7 +246,7 @@ export default function ClienteFichaModal({ clienteId, onClose }: Props) {
                                   {v.resultado}
                                 </span>
                               </div>
-                              {conPedido && <span className="text-sm font-medium text-green-400">${v.monto_pedido?.toFixed(2)}</span>}
+                              {conPedido && <span className="text-sm font-medium text-green-400">{cajasVisita(v)} cj</span>}
                             </div>
                             {prods.length > 0 && (
                               <div className="mt-1.5 space-y-0.5">

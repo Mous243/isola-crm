@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { supabase, type IncentivoProducto } from '@/lib/supabase'
+import { supabase, cajasVisita, type IncentivoProducto } from '@/lib/supabase'
 
 function hoy() { return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Caracas' }) }
 function periodoActual() { return hoy().slice(0, 7) }
@@ -139,10 +139,10 @@ export default function Incentivo() {
     Promise.all([
       supabase.from('incentivo_productos').select('*').eq('periodo', periodo).order('id'),
       supabase.from('visitas').select('cliente_id, productos_pedidos').gte('fecha', inicioMes),
-      supabase.from('cobros').select('monto, estado').eq('origen', 'crm').gte('fecha_emision', inicioMes),
+      supabase.from('cobros').select('monto, estado').eq('origen', 'isola_cxc').gte('fecha_emision', inicioMes),
       supabase.from('clientes').select('id, nombre_negocio, dia_visita').in('status', ['activo', 'nuevo']).order('nombre_negocio'),
       supabase.from('incentivo_snapshot').select('*').eq('periodo', periodo).order('updated_at', { ascending: false }).limit(1).maybeSingle(),
-      supabase.from('visitas').select('cliente_id, monto_pedido').eq('resultado', 'visita_efectiva'),
+      supabase.from('visitas').select('cliente_id, productos_pedidos').eq('resultado', 'visita_efectiva'),
       supabase.from('incentivo_exhibiciones').select('id, cliente_id, hecha, fecha_hecha, confirmada_isola, fecha_confirmada, marca, clientes(nombre_negocio, dia_visita)').eq('candidato', true).order('id'),
       supabase.from('incentivo_suc10').select('vendedor, sucursal, puntos').eq('periodo', periodo).order('corte_fecha', { ascending: false }),
     ]).then(([prodRes, visRes, cobRes, cliRes, snapRes, valRes, exhibRes, suc10Res]) => {
@@ -169,7 +169,7 @@ export default function Incentivo() {
 
       const valorPorCliente = new Map<number, number>()
       for (const v of (valRes.data || [])) {
-        valorPorCliente.set(v.cliente_id, (valorPorCliente.get(v.cliente_id) || 0) + Number(v.monto_pedido || 0))
+        valorPorCliente.set(v.cliente_id, (valorPorCliente.get(v.cliente_id) || 0) + cajasVisita(v))
       }
 
       const calculadas: Fila[] = productos.map(p => {

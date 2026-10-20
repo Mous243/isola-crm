@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { supabase } from '@/lib/supabase'
+import { supabase, tienePedido, cajasVisita } from '@/lib/supabase'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts'
 
 export default function Metricas() {
@@ -46,11 +46,11 @@ export default function Metricas() {
     const hace30 = new Date(new Date(finMes).getTime() - 29 * 864e5).toISOString().split('T')[0]
 
     Promise.all([
-      supabase.from('visitas').select('resultado, monto_pedido, cliente_id').gte('fecha', inicioMes),
-      supabase.from('visitas').select('fecha, resultado, monto_pedido').gte('fecha', hace30).lte('fecha', finMes).order('fecha'),
+      supabase.from('visitas').select('resultado, monto_pedido, productos_pedidos, cliente_id').gte('fecha', inicioMes),
+      supabase.from('visitas').select('fecha, resultado, monto_pedido, productos_pedidos').gte('fecha', hace30).lte('fecha', finMes).order('fecha'),
       supabase.from('metas').select('*').eq('periodo', periodo).eq('tipo', 'mensual').maybeSingle(),
-      supabase.from('visitas').select('cliente_id, monto_pedido, resultado, clientes(nombre_negocio)')
-        .eq('resultado', 'visita_efectiva').gt('monto_pedido', 0).gte('fecha', hace30).lte('fecha', finMes),
+      supabase.from('visitas').select('cliente_id, monto_pedido, productos_pedidos, resultado, clientes(nombre_negocio)')
+        .eq('resultado', 'visita_efectiva').gte('fecha', hace30).lte('fecha', finMes),
       supabase.from('visitas').select('resultado, monto_pedido, cliente_id, productos_pedidos, clientes(nombre_negocio)').gte('fecha', inicioMes),
       supabase.from('cobros').select('monto').eq('estado', 'pagado').gte('fecha_pago', inicioMes),
       supabase.from('metas_variables').select('*').eq('periodo', periodo),
@@ -58,12 +58,12 @@ export default function Metricas() {
       supabase.from('clientes').select('id, nombre_negocio').in('status', ['activo', 'nuevo', 'inactivo']).order('nombre_negocio'),
     ]).then(([vs, hist, m, topVs, mesVs, cobranzaVs, metasVarRes, captRes, carteraRes]) => {
       const v = vs.data || []
-      const conPedido = v.filter((x: any) => x.resultado === 'visita_efectiva' && (x.monto_pedido || 0) > 0)
+      const conPedido = v.filter(tienePedido)
       setSemana({
         total: v.length,
         con_pedido: conPedido.length,
         tasa: v.length ? Math.round(conPedido.length / v.length * 100) : 0,
-        monto: v.reduce((a: number, x: any) => a + (x.monto_pedido || 0), 0),
+        monto: v.reduce((a: number, x: any) => a + cajasVisita(x), 0),
         clientes: new Set(v.map((x: any) => x.cliente_id)).size,
       })
 
@@ -71,14 +71,14 @@ export default function Metricas() {
       for (const row of hist.data || []) {
         if (!porFecha[row.fecha]) porFecha[row.fecha] = { fecha: row.fecha, visitas: 0, pedidos: 0, monto: 0 }
         porFecha[row.fecha].visitas++
-        if (row.resultado === 'visita_efectiva' && (row.monto_pedido || 0) > 0) { porFecha[row.fecha].pedidos++; porFecha[row.fecha].monto += row.monto_pedido || 0 }
+        if (tienePedido(row)) { porFecha[row.fecha].pedidos++; porFecha[row.fecha].monto += cajasVisita(row) }
       }
       setHistorial(Object.values(porFecha).map((r: any) => ({ ...r, fecha: r.fecha.slice(5) })))
 
       const porCliente: Record<number, any> = {}
-      for (const row of topVs.data || []) {
+      for (const row of (topVs.data || []).filter(tienePedido)) {
         if (!porCliente[row.cliente_id]) porCliente[row.cliente_id] = { nombre: (row.clientes as any)?.nombre_negocio, monto: 0, visitas: 0 }
-        porCliente[row.cliente_id].monto += row.monto_pedido || 0
+        porCliente[row.cliente_id].monto += cajasVisita(row)
         porCliente[row.cliente_id].visitas++
       }
       setTop(Object.values(porCliente).sort((a: any, b: any) => b.monto - a.monto).slice(0, 8))
@@ -93,10 +93,10 @@ export default function Metricas() {
       const clientesNoVisitados = todosClientes.filter((c: any) => !visitadosSet.has(c.id)).map((c: any) => c.nombre_negocio)
       setNoVisitados(clientesNoVisitados)
       setMes({
-        monto: mv.reduce((a: number, x: any) => a + (x.monto_pedido || 0), 0),
+        monto: mv.reduce((a: number, x: any) => a + cajasVisita(x), 0),
         visitas: visitadosSet.size,
         cobranza: cobranzaTotal,
-        visitas_efectivas: new Set(mv.filter((x: any) => x.resultado === 'visita_efectiva' && (x.monto_pedido || 0) > 0).map((x: any) => x.cliente_id)).size,
+        visitas_efectivas: new Set(mv.filter(tienePedido).map((x: any) => x.cliente_id)).size,
         cajas: mv.reduce((a: number, x: any) => a + (x.productos_pedidos || []).reduce((s: number, p: any) => s + (p.cajas || 0), 0), 0),
       })
 
@@ -108,7 +108,7 @@ export default function Metricas() {
         porClienteCajas[row.cliente_id].cajas += cajasFila
       }
       setTopCajas(Object.values(porClienteCajas).sort((a, b) => b.cajas - a.cajas))
-      const efectivosMes = mv.filter((x: any) => x.resultado === 'visita_efectiva' && (x.monto_pedido || 0) > 0)
+      const efectivosMes = mv.filter(tienePedido)
       const clientesEfectivos = new Set(efectivosMes.map((x: any) => x.cliente_id)).size
       const calculadas = (metasVarRes.data || []).map((mv2: any) => {
         if (mv2.tipo === 'captaciones') {
@@ -151,7 +151,7 @@ export default function Metricas() {
   }, [periodo])
 
   const guardarMeta = async () => {
-    const d = { periodo, tipo: 'mensual', meta_monto: +metaForm.monto, meta_visitas: +metaForm.visitas, meta_cobranza: +metaForm.cobranza, meta_visitas_efectivas: +metaForm.visitas_efectivas, meta_cajas: +metaForm.cajas }
+    const d = { periodo, tipo: 'mensual', meta_visitas: +metaForm.visitas, meta_cobranza: +metaForm.cobranza, meta_visitas_efectivas: +metaForm.visitas_efectivas, meta_cajas: +metaForm.cajas }
     if (meta) await supabase.from('metas').update(d).eq('id', meta.id)
     else await supabase.from('metas').insert(d)
     setMeta(d)
@@ -197,7 +197,7 @@ export default function Metricas() {
               { label: 'Visitas', value: semana.total },
               { label: 'Clientes', value: semana.clientes },
               { label: 'Con pedido', value: semana.con_pedido },
-              { label: 'Monto USD', value: `$${semana.monto.toFixed(0)}` },
+              { label: 'Cajas', value: semana.monto },
               { label: 'Cajas facturadas', value: mes.cajas },
             ].map(m => (
               <div key={m.label} className="bg-slate-900 rounded-xl p-3 border border-slate-800 text-center">
@@ -236,8 +236,6 @@ export default function Metricas() {
         </div>
         {editMeta && (
           <div className="flex gap-2 mb-3 flex-wrap">
-            <input type="number" placeholder="Meta USD" value={metaForm.monto} onChange={e => setMetaForm({ ...metaForm, monto: e.target.value })}
-              className="flex-1 min-w-[100px] bg-slate-800 border border-slate-700 rounded px-3 py-1.5 text-sm" />
             <input type="number" placeholder="Meta visitas" value={metaForm.visitas} onChange={e => setMetaForm({ ...metaForm, visitas: e.target.value })}
               className="flex-1 min-w-[100px] bg-slate-800 border border-slate-700 rounded px-3 py-1.5 text-sm" />
             <input type="number" placeholder="Meta cobranza USD" value={metaForm.cobranza} onChange={e => setMetaForm({ ...metaForm, cobranza: e.target.value })}
@@ -249,18 +247,8 @@ export default function Metricas() {
             <button onClick={guardarMeta} className="bg-violet-600 text-white px-3 py-1.5 rounded text-sm">OK</button>
           </div>
         )}
-        {meta && meta.meta_monto > 0 ? (
+        {meta ? (
           <div className="space-y-3">
-            <div>
-              <div className="flex justify-between text-sm mb-1">
-                <span>Monto del mes</span>
-                <span className="text-violet-400">${mes.monto.toFixed(0)} / ${meta.meta_monto}</span>
-              </div>
-              <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
-                <div className="h-full bg-violet-600 rounded-full transition-all"
-                  style={{ width: `${Math.min(mes.monto / meta.meta_monto * 100, 100)}%` }} />
-              </div>
-            </div>
             {meta.meta_visitas_efectivas > 0 && (
               <div>
                 <div className="flex justify-between text-sm mb-1">
@@ -451,7 +439,7 @@ export default function Metricas() {
                 <div className="flex-1">
                   <div className="flex justify-between text-sm mb-0.5">
                     <span className="truncate">{c.nombre}</span>
-                    <span className="text-violet-400 shrink-0">${c.monto.toFixed(0)}</span>
+                    <span className="text-violet-400 shrink-0">{c.monto} cj</span>
                   </div>
                   <div className="h-1.5 bg-slate-800 rounded-full">
                     <div className="h-full bg-violet-600/60 rounded-full"

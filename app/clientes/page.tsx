@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { supabase, type Cliente, type Visita } from '@/lib/supabase'
+import { supabase, cajasVisita, type Cliente, type Visita } from '@/lib/supabase'
 
 const STATUS_OPTS = ['activo', 'inactivo', 'nuevo', 'perdido']
 const FREQ_OPTS = ['diario', 'semanal', 'quincenal', 'mensual']
@@ -524,8 +524,8 @@ export default function Clientes() {
                                 v.resultado === 'no_compro' ? 'bg-yellow-900/40 text-yellow-400' :
                                 'bg-slate-800 text-slate-400'
                               }`}>{v.resultado}</span>
-                              {(v.monto_pedido || 0) > 0 && (
-                                <span className="text-violet-400">${v.monto_pedido?.toFixed(2)}</span>
+                              {cajasVisita(v) > 0 && (
+                                <span className="text-violet-400">{cajasVisita(v)} cj</span>
                               )}
                                 {v.notas_visita && (
                                 <span className="text-slate-500 truncate">{v.notas_visita}</span>
