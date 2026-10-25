@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { supabase, type Cobro, type Cliente } from '@/lib/supabase'
 
 const DIAS_CREDITO = 10
@@ -51,6 +52,23 @@ export default function Cobros() {
     setCobros(data || [])
   }
   useEffect(() => { cargar() }, [filtroEstado])
+
+  // ── Solicitud de Notas de Crédito: facturas ya agregadas a la lista ──
+  const [ncIds, setNcIds] = useState<Set<number>>(new Set())
+  useEffect(() => {
+    supabase.from('solicitudes_nc').select('cobro_id').then(({ data }) =>
+      setNcIds(new Set((data || []).map(r => r.cobro_id as number).filter(Boolean))))
+  }, [])
+  const agregarNC = async (c: Cobro) => {
+    const cl = c.clientes as any
+    const { error } = await supabase.from('solicitudes_nc').insert({
+      cobro_id: c.id, cliente_id: c.cliente_id, codigo: cl?.codigo_cliente || null,
+      cliente: cl?.nombre_negocio || '?', factura: c.nro_documento_isola || null,
+      monto: c.monto, nc: Math.round(c.monto * 5) / 100,
+    })
+    if (error) { alert('No se pudo agregar a la lista de NC: ' + error.message); return }
+    setNcIds(prev => new Set(prev).add(c.id))
+  }
 
   // ── Cierre de mes: solo lo que sigue debiendo (al marcar pagado desaparece) ──
   const [cierre, setCierre] = useState<Cobro[]>([])
@@ -222,8 +240,12 @@ export default function Cobros() {
     <div className="space-y-4">
       <div className="flex items-center gap-3">
         <h1 className="text-2xl font-bold text-violet-400">Cobros</h1>
+        <Link href="/notas-credito"
+          className="ml-auto px-3 py-1.5 rounded-lg text-sm font-medium bg-slate-800 hover:bg-slate-700 text-sky-400 border border-sky-500/40">
+          🧾 NC{ncIds.size > 0 ? ` (${ncIds.size})` : ''}
+        </Link>
         <button onClick={() => setTab(tab === 'cierre' ? 'lista' : 'cierre')}
-          className={`ml-auto px-3 py-1.5 rounded-lg text-sm font-medium ${tab === 'cierre'
+          className={`px-3 py-1.5 rounded-lg text-sm font-medium ${tab === 'cierre'
             ? 'bg-amber-500 text-slate-950'
             : 'bg-slate-800 hover:bg-slate-700 text-amber-400 border border-amber-500/40'}`}>
           {tab === 'cierre' ? '← Lista' : '📅 Cierre de mes'}
@@ -469,6 +491,14 @@ export default function Cobros() {
                     <button onClick={() => { setEntregaCobro(c); setFechaEntregaInput(hoy()) }}
                       className="bg-blue-900/30 hover:bg-blue-900/50 text-blue-400 px-3 py-1 rounded-lg text-xs">
                       📦 Entregado
+                    </button>
+                  )}
+                  {ncIds.has(c.id) ? (
+                    <span className="bg-sky-900/40 text-sky-300 px-3 py-1 rounded-lg text-xs">🧾 En lista NC</span>
+                  ) : (
+                    <button onClick={() => agregarNC(c)}
+                      className="bg-sky-900/30 hover:bg-sky-900/50 text-sky-400 px-3 py-1 rounded-lg text-xs">
+                      🧾 Agregar a NC
                     </button>
                   )}
                   {cl?.telefono && c.estado !== 'pagado' && (
