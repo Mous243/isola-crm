@@ -5,7 +5,7 @@ CRM de campo para un vendedor de ISOLA (Venezuela). PWA instalable en Next.js 16
 Para el estado detallado del proyecto (sesiones de trabajo, pendientes, credenciales, decisiones tomadas), ver [CONTINUACION.md](CONTINUACION.md) — es el doc canónico y se mantiene actualizado en cada sesión.
 
 ## Stack
-- Next.js 16.2.6 (App Router, `app/`), React 19, TypeScript
+- Next.js 16.3.7 (App Router, `app/`), React 19, TypeScript
 - Tailwind CSS 4
 - Supabase (`lib/supabase.ts`) — proyecto `qymlqfcdmgyqipkznrvv`
 - Groq (análisis IA en ficha de cliente)

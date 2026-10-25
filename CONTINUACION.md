@@ -23,7 +23,7 @@
 - Tablas Supabase: `clientes` (con `lat`/`lng`), `visitas`, `cobros` (con `origen`: `crm` o `isola_cxc`), `metas` (con `meta_cajas`), `metas_variables`, `despachos`, `despacho_items`, `planes_trabajo`, `incentivo_snapshot`, `incentivo_exhibiciones`, `incentivo_suc10` — RLS habilitado en todas (desde 2026-09-30)
 - `push_subscriptions` fue eliminada (2026-07-25, feature muerta sin uso — notificaciones van 100% por Telegram)
 - Cron jobs Vercel: `/api/notify` diario (resumen 9pm + recordatorio de guía), `/api/plan-mensual` día 1 de cada mes 6am Caracas (nuevo, 2026-09-30)
-- Integración CXC ISOLA: proceso repetible cada viernes (ver sesión 2026-09-29) — el CxC de ISOLA es ahora la **única fuente de cobros pendientes**; `/visita` ya no crea cobros automáticos (desde 2026-09-29)
+- Integración CXC ISOLA: proceso repetible cada viernes (ver sesión 2026-09-29) — el CxC de ISOLA es ahora la **única fuente de cobros pendientes**; `/visita` ya no crea cobros automáticos (desde 2026-09-29) ni captura montos (desde 2026-10-20: solo productos/cajas)
 - Fix timezone UTC→Venezuela aplicado en dashboard y cobros
 - IA vía Groq (Análisis IA + resumen de plan mensual) usa modelo `openai/gpt-oss-20b` (cambiado 2026-09-30, el anterior `llama-3.1-8b-instant` dejó de estar disponible en la cuenta)
 
@@ -36,6 +36,39 @@
 
 ### Generador de Status WhatsApp
 - Script `generar_status.py` — imagen 1080x1080 con logo ISOLA + producto + precio
+
+---
+
+## Sesión 2026-10-25 — resumen de lo trabajado
+
+- **CxC ISOLA cargado (corte 23/10/2026)**, archivo `DANIEL GUARAMATO DOLARES ($) (8).pdf` (119 facturas, 85 clientes, $31,674.89). Reconciliación por `nro_documento_isola` normalizado: 26 facturas nuevas (vencimiento = emisión + 21), 1 abono parcial (MIR4223 A15012723 → $82.23), 5 marcadas pagadas (ids 478, 972, 967, 977, 946). Resultado: 112 pendientes/parciales, $31,569.78. La diferencia de $105.11 vs el PDF son 7 facturas ya pagadas por el usuario cuyo saldo ISOLA aún muestra: **son notas de crédito por volumen (5%)**, no deuda.
+- **Notas de crédito** (`/notas-credito`, tabla `solicitudes_nc`): botón "🧾 Agregar a NC" en cada factura de `/cobros`; la lista guarda código, cliente, factura, monto (de la factura), N/C (monto × 5%, editable), negociación ("Volumen 5%") y observación. Exporta Excel (mismo formato de `Formato NC Isola.xlsx`, con fórmula del 5%) y PDF; tras descargar ofrece marcar como "enviadas" (historial). Usa `exceljs`. Commit `2ffe67b`.
+- **Cartera ISOLA** (`/cartera`, tabla `cartera_isola`, 147 clientes de `Reporte Venta 0.xlsx`, hoja Tabla Clientes, corte 25/10): clientes **sin venta** (79 en el reporte, 71 con match en el CRM) ordenados por días sin visita, filtro por día de visita, aviso "con deuda: cobrar primero", WhatsApp; y pestaña **líneas por activar** (OSOLE Compotas, OSOLE Salsas, OLE Salsas, ALKA). La ficha del cliente muestra sus líneas activas. 8 clientes de la cartera ISOLA no existen aún en `clientes` (MIR4588, 4589, 4590, 4607, 4608, 4648, 4655, 4656); 28 del CRM no están en la cartera ISOLA.
+- **Semáforo ISOLA** en `/cobros`: % CxC >21 y >30 días y días calle, calculados en vivo desde `fecha_emision` (así los mide ISOLA; el EDC del 23/10 dice $30,978 CxC, 85% >21d, 80% >30d, 69.7 días calle). Muestra el total de NC en lista.
+- Los reportes de `Desktop/Nueva carpeta/` (EDC VD, Reporte de Seguimiento, Reporte Venta 0) son corporativos de todas las sucursales; solo se usó la fila ISOLA MIRANDA / DANIEL GUARAMATO. `cartera_isola` es una foto: hay que recargarla cuando llegue un reporte nuevo.
+
+---
+
+## Sesión 2026-10-20 — resumen de lo trabajado
+
+- **Decisión de flujo (usuario): el dinero vive 100% en el CxC de ISOLA; las visitas solo llevan productos/cajas.** `/visita` es para dar seguimiento a incentivos/concursos y a lo que ISOLA exige facturar; los montos y fechas exactas llegan con el CxC (cada viernes) y los pagos los marca el usuario ahí.
+- **Limpieza de cobros `origen=crm`**: se borraron los 18 pendientes/parciales ($4,990.40): duplicados del CxC (301, 873, 874), parciales ya pagados en el CxC (19, 38), la factura de La Rana por $3,152.60 (id 607) y 13 facturas chicas de sep (no aparecían en ningún corte del CxC). **Respaldo en la tabla `cobros_crm_backup`** (Supabase) por si hay que revertir. Resultado verificado: solo queda `isola_cxc` pendiente — 98 facturas, 72 clientes, **$29,573.04**. (El `DELETE` lo ejecutó el usuario en el editor SQL; el clasificador de permisos lo había bloqueado de nuevo.)
+- **`/visita` sin monto** (commit `174341f`, desplegado READY): se quitó el campo de monto, el total del pedido y el `$` del historial; `monto_pedido` se guarda en 0 en visitas nuevas (las viejas conservan su monto). El mensaje de WhatsApp de confirmación sale sin total.
+- **Señal de "visita con pedido"** ahora es `tienePedido()` en `lib/supabase.ts`: visita efectiva con `productos_pedidos` no vacío (o `monto_pedido > 0` para el histórico). `cajasVisita()` suma las cajas. Se usa en Dashboard, Despachos (pedidos sin despachar), Métricas, fichas de cliente (ticket promedio → cajas/pedido), resumen Telegram de las 9pm, `/clientes`. En Métricas se quitó la barra "Monto del mes" y el input "Meta USD"; los $ pasaron a cajas. `/incentivo` ordena por cajas y su respaldo de facturado/cobrado ahora lee `isola_cxc` (antes `crm`). El Análisis IA ya no recibe montos.
+- **Pendiente detectado — fechas de vencimiento del CxC**: las facturas cargadas antes del corte del 16/10 tienen `fecha_vencimiento = fecha_emision` (las del 16/10 en adelante usan emisión + 21 días). Eso infla los "días vencidos" de las viejas en 21 días en cobros/dashboard. Con la regla emisión+21: **51 facturas vencidas de 31 clientes, $25,333.29** (1-30d $1,153.15 · 31-90d $12,475.43 · +90d $11,704.71). Falta decidir si se corrige con un `UPDATE` (no toca montos).
+- **Concentración de deuda**: La Rana ($10,450.20, 3 facturas, 39-40 días vencida) y Lunchería Gilchris III ($6,023.26, ~300 días) = 56% del total.
+
+---
+
+## Sesión 2026-10-16 — resumen de lo trabajado
+
+- **CxC ISOLA cargado (corte 16/10/2026)**, archivo `DANIEL GUARAMATO DOLARES ($) (1).pdf` (134 facturas + 2 ADEL, total PDF $33,187.17). Misma reconciliación de siempre, comparando por `nro_documento_isola` normalizado (`00005011230` → `5011230`; `A100005013102` → `A15013102`): 27 facturas nuevas insertadas (vencimiento = emisión + 21 días), 4 saldos actualizados por abono parcial, 7 marcadas pagadas por haber desaparecido del reporte (fecha_pago 2026-10-16). Cliente nuevo: MIR4669 INVERSIONES VALERO 1518 C.A (Guarenas), sin `dia_visita`. Resultado: 124 pendientes/parciales, $31,721.09. La diferencia de $1,466.08 contra el PDF son 10 facturas que el usuario ya había marcado pagadas y ISOLA aún muestra (se dejan pagadas, no se reabren). Casos raros: A15012730 (MIR3616) CxC muestra $9.89 vs $197.76 pagado en la base; A15013150 (MIR2156) $1,152.38 vs $1,165.02.
+- **Limpieza de `cobros` origen=crm pendiente — SIN HACER**: el clasificador de permisos bloqueó el `DELETE`. Duplicados ya cubiertos por el CxC: ids 873, 866, 877, 871, 874, 301. Los ids 19 y 38 (parciales) coinciden con facturas del CxC ya pagadas, falta decidir.
+- **Primer avance Concurso Olé Q4 VD** (`Concurso Olé Q4 VD.pdf`, 16/10): ponderación por producto **activación 40% (0.40 pts c/u) + volumen 10% (0.10 pts por caja)**, Mayonesa y Pizza+ valen igual. Mayonesa 170g/340g = 1 activación por cliente; Pizza+ = 5 productos (caja mixta, tradicional 200g/300g, maíz, jamón, pepperoni), cada uno 1 activación. Sucursales: ranking 20→1 en activación (% sobre cartera) y volumen (% cuota octubre). Cortes mensuales.
+  - Daniel: **12.80 pts, #1 del Grupo 1** (Teymar Manaure 10.40, Charles Briceño 8.30, Gabriela Ramos 8.10), ~#5 nacional. Mayonesa 28 cajas/20 act; Pizza+ 4 cajas/4 act (maíz 1, tradicional 1, mix 2). Sucursal Miranda 31 pts (#3): volumen #1, activación #10.
+  - Cifras a nivel sucursal de Miranda (9 Pizza+/15 mayo act) no cuadran con la suma de sus RDV (~46/~47) — pendiente preguntar a ISOLA. El PDF no trae detalle por cliente.
+- **`/incentivo` corregido** (commit `c88250e`, desplegado): el conteo ahora es por **código de producto** y no por nombre — antes `pizza` en el nombre metía la caja CSPL001 (salsa de tomate mixta boloñesa/napolitana/pizza/tradicional), que NO es Pizza+ (23 clientes la habían pedido). Códigos que cuentan: Mayonesa `SPAOLE007`, `OLE-6-22-51`; Pizza+ `SPL003`, `SPL012`, `1573`, `SPL006`, `SPL007`, `CSPL002`. Se corrigió la guía (estaba 80/20 volumen/activación, ahora 40/10 del PDF), se muestra qué producto compró cada activado y los puntos estimados. Estado al 16/10: Mayonesa 21 clientes activados en el CRM (ISOLA acredita 20), Pizza+ 4 (Alimentos Plaza Mayorss, Izcalago 2021, Las Dos M 2022, Eglis Quintero) — solo Alimentos Plaza tiene ambos.
+  - **Por confirmar con ISOLA**: si `1573` (340g) cuenta como tradicional, si la caja mixta es `CSPL002` (maíz/jamón/pepperoni), y que CSPL001 no cuenta. Nadie ha pedido jamón ni pepperoni aún.
 
 ---
 
@@ -88,9 +121,13 @@
 ---
 
 ## Pendiente / Ideas para continuar
-- [ ] **Retomar upgrade de Next.js**: `npm install next@16.3.7` ya corrió (package.json en `^16.3.7`), pero falta correr `tsc`/`build` para confirmar que no rompió nada y hacer commit+push — quedó interrumpido por una falla transitoria del clasificador de permisos de shell (2026-09-30)
+- [x] Upgrade de Next.js a 16.3.7: ya commiteado (`3e9e1cf`) y desplegado; `tsc` pasa limpio (2026-10-16)
 - [ ] Cargar la meta oficial de octubre en `metas` (periodo `2026-10`) — el plan mensual de octubre usó la de agosto como referencia porque todavía no estaba cargada
-- [ ] Concurso Olé Q4: construir sección en `/incentivo` cuando el usuario avise que arranca (esperando su cuota individual de cajas Mayonesa/Pizza+, no viene en el PPTX del concurso)
+- [x] Concurso Olé Q4: sección en `/incentivo` construida (ver sesión 2026-10-16). Falta: confirmar con ISOLA los códigos dudosos (1573, CSPL002, CSPL001) y la cuota individual real de cajas Mayonesa/Pizza+ (la de la app es tentativa)
+- [x] Borrar cobros `crm` duplicados/pendientes — hecho 2026-10-20 (18 filas; respaldo en `cobros_crm_backup`, se puede borrar esa tabla cuando ya no haga falta)
+- [ ] Corregir `fecha_vencimiento` de las facturas `isola_cxc` cargadas antes del 16/10 (hoy = emisión; debería ser emisión + 21). `UPDATE` pendiente de aprobación del usuario
+- [ ] Asignar `dia_visita` a MIR4669 Inversiones Valero 1518 (cliente nuevo del CxC del 16/10)
+- [ ] Preguntar a ISOLA por qué las activaciones de la sucursal Miranda (9/15) no cuadran con la suma de sus RDV
 - [ ] Asignar `dia_visita` a MIR4591 Orlando Davila Julio (cliente nuevo detectado en el CxC del 25/09)
 - [ ] Revisar con ISOLA los 65 clientes de exhibiciones Osole marcados "hechos" que aún no confirman en el corte oficial (y las 112 de Renata, 0 confirmadas hasta ahora)
 - [ ] Los 62 cobros `crm` pendientes que no matchean el CxC (facturas muy recientes) se resuelven solos cuando el próximo CxC los alcance — no requiere acción, solo monitorear

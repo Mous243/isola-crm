@@ -59,6 +59,26 @@ export default function Cobros() {
     supabase.from('solicitudes_nc').select('cobro_id').then(({ data }) =>
       setNcIds(new Set((data || []).map(r => r.cobro_id as number).filter(Boolean))))
   }, [])
+  // ── Semáforo ISOLA: así mide ISOLA la cartera (antigüedad desde la emisión) ──
+  const [sem, setSem] = useState<{ total: number; m21: number; m30: number; calle: number; n: number; n21: number; nc: number } | null>(null)
+  useEffect(() => {
+    Promise.all([
+      supabase.from('cobros').select('monto, fecha_emision').eq('origen', 'isola_cxc').in('estado', ['pendiente', 'parcial']),
+      supabase.from('solicitudes_nc').select('nc'),
+    ]).then(([a, b]) => {
+      const h = hoy()
+      const docs = (a.data || []).map(d => ({ m: d.monto as number, d: d.fecha_emision ? diasEntre(d.fecha_emision, h) : 0 }))
+      if (!docs.length) return
+      setSem({
+        total: docs.reduce((s, x) => s + x.m, 0),
+        m21: docs.filter(x => x.d > 21).reduce((s, x) => s + x.m, 0),
+        m30: docs.filter(x => x.d > 30).reduce((s, x) => s + x.m, 0),
+        calle: docs.reduce((s, x) => s + x.d, 0) / docs.length,
+        n: docs.length, n21: docs.filter(x => x.d > 21).length,
+        nc: (b.data || []).reduce((s, x) => s + (x.nc as number), 0),
+      })
+    })
+  }, [])
   const agregarNC = async (c: Cobro) => {
     const cl = c.clientes as any
     const { error } = await supabase.from('solicitudes_nc').insert({
@@ -240,8 +260,12 @@ export default function Cobros() {
     <div className="space-y-4">
       <div className="flex items-center gap-3">
         <h1 className="text-2xl font-bold text-violet-400">Cobros</h1>
+        <Link href="/cartera"
+          className="ml-auto px-3 py-1.5 rounded-lg text-sm font-medium bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-emerald-500/40">
+          📊 Cartera
+        </Link>
         <Link href="/notas-credito"
-          className="ml-auto px-3 py-1.5 rounded-lg text-sm font-medium bg-slate-800 hover:bg-slate-700 text-sky-400 border border-sky-500/40">
+          className="px-3 py-1.5 rounded-lg text-sm font-medium bg-slate-800 hover:bg-slate-700 text-sky-400 border border-sky-500/40">
           🧾 NC{ncIds.size > 0 ? ` (${ncIds.size})` : ''}
         </Link>
         <button onClick={() => setTab(tab === 'cierre' ? 'lista' : 'cierre')}
@@ -255,6 +279,23 @@ export default function Cobros() {
           {tab === 'nuevo' ? '← Lista' : '+ Nuevo'}
         </button>
       </div>
+
+      {sem && tab === 'lista' && (
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-3 space-y-2">
+          <p className="text-xs text-slate-400">Así te mide ISOLA (antigüedad desde la emisión)</p>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-center">
+            <div><p className="text-lg font-bold">${sem.total.toFixed(2)}</p><p className="text-[11px] text-slate-400">CxC · {sem.n} facturas</p></div>
+            <div><p className="text-lg font-bold text-orange-400">{(sem.m21 / sem.total * 100).toFixed(0)}%</p>
+              <p className="text-[11px] text-slate-400">&gt;21 días · ${sem.m21.toFixed(2)} · {sem.n21} fact.</p></div>
+            <div><p className="text-lg font-bold text-red-400">{(sem.m30 / sem.total * 100).toFixed(0)}%</p>
+              <p className="text-[11px] text-slate-400">&gt;30 días · ${sem.m30.toFixed(2)}</p></div>
+            <div><p className="text-lg font-bold">{sem.calle.toFixed(0)}</p><p className="text-[11px] text-slate-400">días calle</p></div>
+          </div>
+          {sem.nc > 0 && (
+            <p className="text-[11px] text-sky-300">🧾 NC en lista: ${sem.nc.toFixed(2)} — ISOLA las sigue contando como CxC vencido hasta que las rebajen.</p>
+          )}
+        </div>
+      )}
 
       {tab === 'nuevo' && (
         <div className="bg-slate-900 rounded-xl p-4 border border-slate-800 space-y-3">

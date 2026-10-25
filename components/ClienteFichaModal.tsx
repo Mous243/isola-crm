@@ -62,6 +62,16 @@ export default function ClienteFichaModal({ clienteId, onClose }: Props) {
   const [loadingIA, setLoadingIA] = useState(false)
   const [errorIA, setErrorIA] = useState<string | null>(null)
   const [iaIntentada, setIaIntentada] = useState(false)
+  const [lineas, setLineas] = useState<Record<string, boolean> | null>(null)
+
+  // líneas activas según el reporte de ISOLA (tabla cartera_isola, se cruza por código)
+  useEffect(() => {
+    supabase.from('clientes').select('codigo_cliente').eq('id', clienteId).single().then(({ data }) => {
+      if (!data?.codigo_cliente) return
+      supabase.from('cartera_isola').select('osole_cmp,osole_spp,ole_spp,alka').eq('codigo', data.codigo_cliente).maybeSingle()
+        .then(({ data: k }) => setLineas(k as Record<string, boolean> | null))
+    })
+  }, [clienteId])
 
   useEffect(() => {
     Promise.all([
@@ -131,6 +141,21 @@ export default function ClienteFichaModal({ clienteId, onClose }: Props) {
                 )}
                 <p className="text-xs text-slate-500 mt-0.5">📦 Cajas facturadas este mes: <span className="text-white font-medium">{cajasMes}</span></p>
               </div>
+
+              {/* Líneas activas según ISOLA */}
+              {lineas && (
+                <div className="rounded-xl p-3 border bg-slate-900 border-slate-800">
+                  <p className="text-xs font-semibold text-emerald-400 mb-2">📊 Líneas ISOLA (este mes)</p>
+                  <div className="flex gap-1.5 flex-wrap">
+                    {([['osole_cmp', 'OSOLE Compotas'], ['osole_spp', 'OSOLE Salsas'], ['ole_spp', 'OLE Salsas'], ['alka', 'ALKA']] as const).map(([k, l]) => (
+                      <span key={k} className={`text-[11px] px-2 py-0.5 rounded-full ${lineas[k] ? 'bg-green-900/50 text-green-300' : 'bg-slate-800 text-slate-500'}`}>
+                        {lineas[k] ? '✓' : '○'} {l}
+                      </span>
+                    ))}
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-2">Las que están en gris son oportunidad para ofrecer en la próxima visita.</p>
+                </div>
+              )}
 
               {/* Análisis IA */}
               {iaIntentada && (
