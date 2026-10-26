@@ -81,10 +81,19 @@ export default function Cobros() {
   }, [])
   const agregarNC = async (c: Cobro) => {
     const cl = c.clientes as any
+    // MONTO = total original de la factura; N/C = lo que ISOLA aún muestra como saldo.
+    // Si la factura sigue abierta, su saldo actual (c.monto) ya es la NC.
+    const abierta = c.estado === 'pendiente' || c.estado === 'parcial'
+    const sugerido = c.monto_original ?? (abierta ? null : c.monto)
+    const entrada = prompt(`Monto TOTAL de la factura ${c.nro_documento_isola || ''} (no el saldo):`, sugerido != null ? String(sugerido) : '')
+    if (entrada === null) return
+    const total = Number(entrada.replace(',', '.'))
+    if (!(total > 0)) { alert('Monto inválido'); return }
+    const nc = abierta ? c.monto : Math.round(total * 5) / 100
     const { error } = await supabase.from('solicitudes_nc').insert({
       cobro_id: c.id, cliente_id: c.cliente_id, codigo: cl?.codigo_cliente || null,
       cliente: cl?.nombre_negocio || '?', factura: c.nro_documento_isola || null,
-      monto: c.monto, nc: Math.round(c.monto * 5) / 100,
+      monto: total, nc,
     })
     if (error) { alert('No se pudo agregar a la lista de NC: ' + error.message); return }
     setNcIds(prev => new Set(prev).add(c.id))

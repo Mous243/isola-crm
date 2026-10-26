@@ -162,7 +162,7 @@ export default function NotasCredito() {
 
       {vista === 'pendiente' && (
         <p className="text-xs text-slate-500">
-          Agrega facturas desde Cobros con el botón “🧾 Agregar a NC”. El N/C se calcula como monto × 5% y puedes cambiarlo.
+          Agrega facturas desde Cobros con el botón “🧾 Agregar a NC”. Monto = total de la factura; N/C = lo que ISOLA aún muestra como saldo (ambos editables).
         </p>
       )}
 
@@ -178,10 +178,10 @@ export default function NotasCredito() {
               <button onClick={() => quitar(f)} className="bg-red-900/30 hover:bg-red-900/50 text-red-400 px-2 py-1 rounded-lg text-xs">🗑️</button>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-              <label className="text-xs text-slate-400">Monto factura
+              <label className="text-xs text-slate-400">Monto total factura
                 <input type="number" step="0.01" className={inp} value={f.monto}
-                  onChange={e => cambiar(f.id, { monto: Number(e.target.value), nc: r2(Number(e.target.value) * 0.05) })}
-                  onBlur={() => guardar(f.id, { monto: f.monto, nc: f.nc })} />
+                  onChange={e => cambiar(f.id, { monto: Number(e.target.value) })}
+                  onBlur={() => guardar(f.id, { monto: f.monto })} />
               </label>
               <label className="text-xs text-slate-400">N/C
                 <input type="number" step="0.01" className={inp} value={f.nc}
