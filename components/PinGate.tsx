@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
+import CreadoPorMous from '@/components/CreadoPorMous'
 
 const PIN_CORRECTO = '1234'
 const KEY = 'isola_auth'
@@ -68,6 +69,7 @@ export default function PinGate({ children }: { children: React.ReactNode }) {
             </button>
           ))}
         </div>
+        <div className="mt-5 flex justify-center"><CreadoPorMous /></div>
       </div>
     </div>
   )
