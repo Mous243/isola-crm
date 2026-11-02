@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { supabase, cajasVisita, type IncentivoProducto } from '@/lib/supabase'
+import SprintFinAno from '@/components/SprintFinAno'
 
 function hoy() { return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Caracas' }) }
 function periodoActual() { return hoy().slice(0, 7) }
@@ -245,6 +246,8 @@ export default function Incentivo() {
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-bold text-violet-400">🏆 Incentivo</h1>
+
+      <SprintFinAno />
 
       {oleQ4.length > 0 && (
         <div className="bg-slate-900 rounded-xl border border-slate-800 overflow-hidden">
